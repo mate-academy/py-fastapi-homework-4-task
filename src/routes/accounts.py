@@ -1,13 +1,20 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import (
+    APIRouter,
+    Depends,
+    status,
+    HTTPException,
+    BackgroundTasks
+)
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from config import (
     get_jwt_auth_manager,
     get_settings,
+    get_accounts_email_notificator,
     BaseAppSettings
 )
 from database import (
@@ -67,9 +74,11 @@ router = APIRouter()
         },
     }
 )
-def register_user(
+async def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -98,9 +107,13 @@ def register_user(
 
         activation_token = ActivationTokenModel(user_id=new_user.id)
         db.add(activation_token)
-
         db.commit()
         db.refresh(new_user)
+        background_tasks.add_task(
+            email_notificator.send_activation_email,
+            new_user.email,
+            f"http://localhost:8000/api/v1/accounts/activate/?email={new_user.email}&activation_token={activation_token.token}"
+        )
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -142,8 +155,10 @@ def register_user(
     },
 )
 def activate_account(
-        activation_data: UserActivationRequestSchema,
+        user_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -152,8 +167,8 @@ def activate_account(
     and deletes the token. If invalid or expired, raises an appropriate error.
     """
     token_record = db.query(ActivationTokenModel).join(UserModel).filter(
-        UserModel.email == activation_data.email,
-        ActivationTokenModel.token == activation_data.token
+        UserModel.email == user_data.email,
+        ActivationTokenModel.token == user_data.token
     ).first()
 
     if (not token_record or
@@ -176,6 +191,11 @@ def activate_account(
     user.is_active = True
     db.delete(token_record)
     db.commit()
+    background_tasks.add_task(
+        email_notificator.send_activation_complete_email,
+        user.email,
+        f"http://localhost:8000/api/v1/accounts/login/"
+    )
 
     return MessageResponseSchema(message="User account activated successfully.")
 
@@ -192,7 +212,9 @@ def activate_account(
 )
 def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -212,6 +234,12 @@ def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     db.commit()
+
+    background_tasks.add_task(
+        email_notificator.send_password_reset_email,
+        user.email,
+        f"http://localhost:8000/api/v1/accounts/reset-password/complete/"
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -263,7 +291,9 @@ def request_password_reset_token(
 )
 def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -301,6 +331,11 @@ def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
         )
+    background_tasks.add_task(
+        email_notificator.send_password_reset_email,
+        user.email,
+        f"http://localhost:8000/api/v1/accounts/reset-password/complete/"
+    )
 
     return MessageResponseSchema(message="Password reset successfully.")
 
