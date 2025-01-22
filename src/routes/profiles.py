@@ -1,4 +1,6 @@
 import asyncio
+from typing import Type
+
 from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
 from starlette import status
@@ -33,6 +35,7 @@ def create_profile(
 
     try:
         user_data = jwt_auth_manager.decode_access_token(token)
+        _get_user_from_db(db, user_data["user_id"], user_id)
 
         _check_existing_profile(db, user_id)
 
@@ -85,7 +88,7 @@ def _validate_profile_data(data_profile: ProfileRequestForm):
         )
 
 
-def _get_user_from_db(db: Session, token_user_id: int, user_id: int) -> UserModel:
+def _get_user_from_db(db: Session, token_user_id: int, user_id: int) -> Type[UserModel] | None:
 
     user = db.query(UserModel).filter_by(id=token_user_id).first()
     if not user or not user.is_active:
