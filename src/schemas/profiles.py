@@ -6,10 +6,10 @@ from validation.profile import validate_gender, validate_image, validate_name, v
 
 
 class ProfileRequestSchema(BaseModel):
-    first_name: Optional[str]
-    last_name: Optional[str]
-    gender: Optional[str]
-    date_of_birth: Optional[datetime.date]
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: datetime.date
     info: str
     avatar: str
 
