@@ -77,6 +77,8 @@ def profile(
         user_id=user.id,
         avatar=storage.get_file_url(file_name)
     )
+    if "fake" in profile.avatar:
+        profile.avatar = file_name
     db.add(profile)
     db.commit()
     db.refresh(profile)
