@@ -1,8 +1,6 @@
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from jose import ExpiredSignatureError
 from sqlalchemy.orm import Session
 from starlette import status
 
@@ -61,10 +59,11 @@ def profile(
         )
 
     try:
-        file_name = f"avatars/{user.id}_avatar.jpg"
-        file_data = profile_form.avatar.file.read()
-        storage.upload_file(file_name, file_data)
-    except Exception:
+        if profile_form and profile_form.avatar:
+            file_name = f"avatars/{user.id}_avatar.jpg"
+            file_data = profile_form.avatar.file.read()
+            storage.upload_file(file_name, file_data)
+    except BaseS3Error:
         raise HTTPException(
             status_code=500,
             detail="Failed to upload avatar. Please try again later."
@@ -76,7 +75,7 @@ def profile(
         date_of_birth=profile_form.date_of_birth,
         info=profile_form.info,
         user_id=user.id,
-        avatar=file_name
+        avatar=storage.get_file_url(file_name)
     )
     db.add(profile)
     db.commit()

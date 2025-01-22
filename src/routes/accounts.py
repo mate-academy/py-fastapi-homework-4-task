@@ -153,7 +153,9 @@ def register_user(
 )
 def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -163,7 +165,7 @@ def activate_account(
     """
     token_record = db.query(ActivationTokenModel).join(UserModel).filter(
         UserModel.email == activation_data.email,
-        ActivationTokenModel.token == activation_data.token
+        ActivationTokenModel.token == activation_data.token,
     ).first()
 
     if (not token_record or
@@ -175,6 +177,14 @@ def activate_account(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired activation token."
         )
+
+    login_link = "http://127.0.0.1:8000/accounts/activate"
+
+    background_tasks.add_task(
+        email_notificator.send_activation_complete_email,
+        email=activation_data.email,
+        login_link=login_link
+    )
 
     user = token_record.user
     if user.is_active:
@@ -202,7 +212,9 @@ def activate_account(
 )
 def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -222,6 +234,14 @@ def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     db.commit()
+
+    reset_link = "http://127.0.0.1:8000/accounts/activate"
+
+    background_tasks.add_task(
+        email_notificator.send_password_reset_email,
+        email=data.email,
+        reset_link=reset_link
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -273,7 +293,9 @@ def request_password_reset_token(
 )
 def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -300,6 +322,14 @@ def reset_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid email or token."
         )
+
+    login_link = "http://127.0.0.1:8000/accounts/activate"
+
+    background_tasks.add_task(
+        email_notificator.send_password_reset_complete_email,
+        email=data.email,
+        login_link=login_link
+    )
 
     try:
         user.password = data.password

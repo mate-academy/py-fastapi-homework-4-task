@@ -23,7 +23,7 @@ class ProfileRequestForm(BaseModel):
             last_name: Optional[str] = Form(None),
             gender: Optional[str] = Form(None),
             date_of_birth: Optional[datetime.date] = Form(None),
-            info: Optional[Optional[str]] = Form(None),
+            info: Optional[str] = Form(None),
             avatar: Optional[UploadFile] = File(None)
     ) -> Any:
         return cls(
