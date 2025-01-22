@@ -85,7 +85,6 @@ def create_profile(
         try:
             s3_client.upload_file(avatar_name, avatar)
             avatar_url = s3_client.get_file_url(avatar_name)
-            profile.avatar = avatar_url
         except S3FileUploadError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -99,11 +98,12 @@ def create_profile(
         profile.gender = data_profile.gender
         profile.date_of_birth = data_profile.date_of_birth
         profile.info = data_profile.info
+        profile.avatar = avatar_name
 
         db.add(profile)
         db.commit()
 
-        profile.avatar = avatar_name
+        profile.avatar = avatar_url
 
         return profile
     except TokenExpiredError:
