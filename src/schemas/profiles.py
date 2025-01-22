@@ -19,11 +19,7 @@ class ProfileResponseSchema(ProfileSchema):
 
 
 class ProfileRequestForm(ProfileSchema):
-    first_name: str
-    last_name: str
-    gender: str
-    date_of_birth: datetime.date
-    info: str
+
     avatar: UploadFile
 
     @classmethod
