@@ -84,7 +84,7 @@ def test_create_user_profile_with_fake_s3(
         "Invalid Authorization header format. Expected 'Bearer <token>'")
     ],
 )
-def test_create_user_profile_invalid_auth(client, headers, expected_status, expected_detail):
+def test_create_user_profile_invalid_auth(db_session, client, headers, expected_status, expected_detail):
     """
     Test profile creation with missing or incorrectly formatted Authorization header.
 
@@ -99,7 +99,26 @@ def test_create_user_profile_invalid_auth(client, headers, expected_status, expe
 
     profile_url = "/api/v1/profiles/users/1/profile/"
 
-    response = client.post(profile_url, headers=headers)
+    user = UserModel.create(email="test@mate.com", raw_password="TestPassword123!", group_id=1)
+    user.is_active = True
+    db_session.add(user)
+    db_session.commit()
+
+    img = Image.new("RGB", (100, 100), color="blue")
+    img_bytes = BytesIO()
+    img.save(img_bytes, format="JPEG")
+    img_bytes.seek(0)
+
+    files = {
+        "first_name": (None, "John"),
+        "last_name": (None, "Doe"),
+        "gender": (None, "man"),
+        "date_of_birth": (None, "1990-01-01"),
+        "info": (None, "This is a test profile."),
+        "avatar": ("avatar.jpg", img_bytes, "image/jpeg"),
+    }
+
+    response = client.post(profile_url, headers=headers, files=files)
 
     assert response.status_code == expected_status, f"Expected {expected_status}, got {response.status_code}"
     assert response.json()["detail"] == expected_detail, \
