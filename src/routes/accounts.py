@@ -115,15 +115,11 @@ def register_user(
             detail="An error occurred during user creation."
         )
     else:
-        # base_url = str(requets.base_url)
         activation_link = f"{BASE_URL}/activate/?token={activation_token.token}"
-        # activation_link = urljoin(base_url, "accounts/activate/?token=", activation_token.token)
-        # background_tasks.add_task(
         sender.send_activation_email(
             email=user_data.email,
             activation_link=activation_link,
         )
-        # )
 
         return UserRegistrationResponseSchema.model_validate(new_user)
 

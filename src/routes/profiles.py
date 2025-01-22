@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from config import get_jwt_auth_manager, get_s3_storage_client
 from database import UserProfileModel, get_db, UserModel
-from exceptions import TokenExpiredError
+from exceptions import TokenExpiredError, S3UploadFailedError
 from schemas.profiles import ProfileRequestForm, ProfileResponseSchema
 from security.http import get_token
 from security.token_manager import JWTAuthManager
@@ -75,7 +75,7 @@ def profile(
         file_data = profile_form.avatar.file.read()
         storage.upload_file(file_name, file_data)
     except Exception:
-        raise HTTPException(status_code=500, detail="Failed to upload avatar. Please try again later.")
+        raise S3UploadFailedError(status_code=500, detail="Failed to upload avatar. Please try again later.")
 
     profile = UserProfileModel(
         first_name=profile_form.first_name.lower(),
