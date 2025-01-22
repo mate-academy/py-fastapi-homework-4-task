@@ -77,13 +77,13 @@ def create_profile(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User already has a profile."
             )
+
         profile = UserProfileModel()
 
         avatar_name = f"avatars/{user_id}_avatar.jpg"
         avatar = asyncio.run(data_profile.avatar.read())
         try:
             s3_client.upload_file(avatar_name, avatar)
-            avatar_url = s3_client.get_file_url(avatar_name)
         except S3FileUploadError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -101,6 +101,7 @@ def create_profile(
         db.add(profile)
         db.commit()
 
+        avatar_url = s3_client.get_file_url(avatar_name)
         profile.avatar = avatar_url
 
         return profile

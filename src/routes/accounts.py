@@ -111,7 +111,7 @@ def register_user(
             detail="An error occurred during user creation."
         )
     else:
-        activation_link = f"http://127.0.0.1:8000/account/activate/?token={activation_token.token}"
+        activation_link = f"http://127.0.0.1:8000/accounts/activate/"
 
         background_tasks.add_task(
             email_notificator.send_activation_email,
@@ -191,7 +191,7 @@ def activate_account(
     db.delete(token_record)
     db.commit()
 
-    login_link = "http://127.0.0.1:8000/account/login/"
+    login_link = "http://127.0.0.1:8000/accounts/login/"
     background_tasks.add_task(
         email_notificator.send_activation_complete_email,
         email=user.email,
@@ -236,7 +236,7 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    reset_link = f"http://127.0.0.1:8000/account/reset_password/complete/?token={reset_token.token}"
+    reset_link = f"http://127.0.0.1:8000/accounts/reset_password/complete/"
     background_tasks.add_task(
         email_notificator.send_password_reset_email,
         email=user.email,
@@ -334,7 +334,7 @@ def reset_password(
             detail="An error occurred while resetting the password."
         )
 
-    login_link = "http://127.0.0.1:8000/account/login/"
+    login_link = "http://127.0.0.1:8000/accounts/login/"
     background_tasks.add_task(
         email_notificator.send_password_reset_complete_email,
         email=user.email,

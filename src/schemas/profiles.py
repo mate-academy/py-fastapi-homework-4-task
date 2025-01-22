@@ -1,8 +1,7 @@
 from fastapi import UploadFile, Form, File
-from pydantic import BaseModel, validator, field_validator
+from pydantic import BaseModel
 import datetime
-from typing import Optional, Any
-from validation.profile import validate_gender, validate_image, validate_name, validate_birth_date
+from typing import Any
 
 
 class ProfileRequestSchema(BaseModel):
