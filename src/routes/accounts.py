@@ -31,7 +31,7 @@ from schemas import (
 )
 from security.interfaces import JWTAuthManagerInterface
 
-BASE_URL = "http://127.0.0.1/api/v1/accounts"
+BASE_URL = "http://127.0.0.1/accounts"
 ACTIVATE_ENDPOINT = f"{BASE_URL}/activate"
 LOGIN_ENDPOINT = f"{BASE_URL}/login"
 RESET_PASSWORD_ENDPOINT = f"{BASE_URL}/reset-password/complete"
