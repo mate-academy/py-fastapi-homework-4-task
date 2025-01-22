@@ -17,6 +17,22 @@ from validation.profile import validate_info
 router = APIRouter()
 
 
+def _extract_token(request: Request) -> str:
+    token = request.headers.get("Authorization")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header is missing"
+        )
+    parts = token.split()
+    if parts[0] != "Bearer" or len(parts) != 2:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Authorization header format. Expected 'Bearer <token>'"
+        )
+    return parts[1]
+
+
 @router.post(
     "/users/{user_id}/profile/",
     response_model=ProfileResponseSchema,
@@ -25,12 +41,13 @@ router = APIRouter()
 def create_profile(
         request: Request,
         user_id: int,
+        token: str = Depends(_extract_token),
         data_profile: ProfileRequestForm = Depends(ProfileRequestForm.as_form),
         s3_client: S3StorageInterface = Depends(get_s3_storage_client),
         jwt_auth_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
         db: Session = Depends(get_db),
 ):
-    token = _extract_token(request)
+
     _validate_profile_data(data_profile)
 
     try:
@@ -53,23 +70,6 @@ def create_profile(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired."
         )
-
-
-def _extract_token(request: Request) -> str:
-
-    token = request.headers.get("Authorization")
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header is missing"
-        )
-    parts = token.split()
-    if parts[0] != "Bearer" or len(parts) != 2:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Authorization header format. Expected 'Bearer <token>'"
-        )
-    return parts[1]
 
 
 def _validate_profile_data(data_profile: ProfileRequestForm):
