@@ -39,7 +39,9 @@ def test_create_user_profile_with_fake_s3(
     avatar_key = f"avatars/{user.id}_avatar.jpg"
 
     profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
-    headers = {"Authorization": f"Bearer {access_token}"}
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+    }
     files = {
         "first_name": (None, "John"),
         "last_name": (None, "Doe"),

@@ -39,7 +39,9 @@ def test_create_user_profile(e2e_client, db_session, settings, s3_client):
     img_bytes.seek(0)
 
     profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
-    headers = {"Authorization": f"Bearer {access_token}"}
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+    }
 
     files = {
         "first_name": (None, "John"),
@@ -52,7 +54,7 @@ def test_create_user_profile(e2e_client, db_session, settings, s3_client):
 
     profile_response = e2e_client.post(profile_url, headers=headers, files=files)
 
-    assert profile_response.status_code == 201, f"Expected 201, got {profile_response.status_code}"
+    assert profile_response.status_code == 201, f"Expected 201, got {profile_response.status_code, profile_response.content}"
     profile_data = profile_response.json()
 
     assert profile_data["first_name"] == "john"
