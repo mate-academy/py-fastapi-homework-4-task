@@ -44,6 +44,7 @@ def validate_birth_date(birth_date: date) -> None:
     if age < 18:
         raise ValueError('You must be at least 18 years old to register.')
 
+
 def validate_info(info: str) -> None:
     if not info or not len(info.strip()):
         raise ValueError('Info field cannot be empty or contain only spaces.')
