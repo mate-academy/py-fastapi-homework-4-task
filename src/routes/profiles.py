@@ -1,5 +1,4 @@
 import asyncio
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
@@ -90,7 +89,6 @@ def create_profile(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to upload avatar. Please try again later."
             )
-        s3_client.get_file_url(avatar_name)
 
         profile.user_id = user_id
         profile.first_name = data_profile.first_name.lower()

@@ -1,11 +1,9 @@
 from datetime import datetime, timezone
 from typing import cast
-from urllib.parse import urljoin
 
 from fastapi import APIRouter, Depends, status, HTTPException, Request, BackgroundTasks
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from urllib3.util import url
 
 from config import (
     get_jwt_auth_manager,
@@ -113,11 +111,6 @@ def register_user(
             detail="An error occurred during user creation."
         )
     else:
-        # base_url = str(request.base_url)
-        # activation_link = urljoin(
-        #     base_url,
-        #     f"accounts/activate/?token={activation_token.token}"
-        # ) # not work
         activation_link = f"http://127.0.0.1:8000/account/activate/?token={activation_token.token}"
 
         background_tasks.add_task(
