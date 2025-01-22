@@ -35,7 +35,11 @@ from schemas import (
 )
 from security.interfaces import JWTAuthManagerInterface
 
+
 router = APIRouter()
+ACTIVATION_LINK = "http://127.0.0.1/accounts/activate/"
+LOGIN_LINK = "http://127.0.0.1/accounts/login/"
+RESET_LINK = "http://127.0.0.1/accounts/reset-password/complete/"
 
 
 @router.post(
@@ -109,11 +113,10 @@ def register_user(
             detail="An error occurred during user creation."
         )
     else:
-        activation_link = "http://127.0.0.1/accounts/activate/"
         background_tasks.add_task(
             email_sender.send_activation_email,
             email=new_user.email,
-            activation_link=activation_link
+            activation_link=ACTIVATION_LINK
         )
 
         return UserRegistrationResponseSchema.model_validate(new_user)
@@ -188,11 +191,10 @@ def activate_account(
     db.delete(token_record)
     db.commit()
 
-    login_link = "http://127.0.0.1/accounts/login/"
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         email=str(activation_data.email),
-        login_link=login_link
+        login_link=LOGIN_LINK
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -233,11 +235,10 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    reset_link = "http://127.0.0.1/accounts/reset-password/complete/"
     background_tasks.add_task(
         email_sender.send_password_reset_email,
         email=str(data.email),
-        reset_link=reset_link
+        reset_link=RESET_LINK
     )
 
     return MessageResponseSchema(
@@ -331,11 +332,10 @@ def reset_password(
             detail="An error occurred while resetting the password."
         )
 
-    login_link = "http://127.0.0.1/accounts/login/"
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
         email=str(data.email),
-        login_link=login_link
+        login_link=LOGIN_LINK
     )
 
     return MessageResponseSchema(message="Password reset successfully.")
