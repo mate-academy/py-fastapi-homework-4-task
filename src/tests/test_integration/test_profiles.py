@@ -84,7 +84,7 @@ def test_create_user_profile_with_fake_s3(
         "Invalid Authorization header format. Expected 'Bearer <token>'")
     ],
 )
-def test_create_user_profile_invalid_auth(db_session, client, headers, expected_status, expected_detail):
+def test_create_user_profile_invalid_auth(client, headers, expected_status, expected_detail):
     """
     Test profile creation with missing or incorrectly formatted Authorization header.
 
@@ -98,11 +98,6 @@ def test_create_user_profile_invalid_auth(db_session, client, headers, expected_
     """
 
     profile_url = "/api/v1/profiles/users/1/profile/"
-
-    user = UserModel.create(email="test@mate.com", raw_password="TestPassword123!", group_id=1)
-    user.is_active = True
-    db_session.add(user)
-    db_session.commit()
 
     img = Image.new("RGB", (100, 100), color="blue")
     img_bytes = BytesIO()

@@ -9,39 +9,8 @@ class ProfileRequestSchema(BaseModel):
     last_name: Optional[str]
     gender: Optional[str]
     date_of_birth: Optional[datetime.date]
-    info: Optional[str]
+    info: str
     avatar: str
-
-    @field_validator("first_name")
-    @classmethod
-    def validate_first_name(cls, value):
-        validate_name(value)
-        return value
-
-    @field_validator("last_name")
-    @classmethod
-    def validate_last_name(cls, value):
-        validate_name(value)
-        return value
-
-    @field_validator("gender")
-    @classmethod
-    def validate_gender(cls, value):
-        validate_gender(value)
-        return value
-
-    @field_validator("date_of_birth")
-    @classmethod
-    def validate_date_of_birth(cls, value):
-        validate_birth_date(value)
-        return value
-
-
-    @field_validator("avatar")
-    @classmethod
-    def validate_avatar(cls, value):
-        #validate_image(value)
-        return value
 
 
 class ProfileResponseSchema(ProfileRequestSchema):
@@ -75,10 +44,3 @@ class ProfileRequestForm(BaseModel):
             info=info,
             avatar=avatar
         )
-
-    @field_validator("first_name")
-    @classmethod
-    def validate_first_name(cls, value):
-        validate_name(value)
-
-        return value
