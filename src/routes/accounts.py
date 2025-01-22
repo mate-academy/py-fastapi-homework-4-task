@@ -111,7 +111,7 @@ def register_user(
             detail="An error occurred during user creation."
         )
     else:
-        activation_link = f"http://127.0.0.1:8000/accounts/activate/"
+        activation_link = "http://127.0.0.1:8000/accounts/activate/"
 
         background_tasks.add_task(
             email_notificator.send_activation_email,
@@ -236,7 +236,7 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    reset_link = f"http://127.0.0.1:8000/accounts/reset_password/complete/"
+    reset_link = "http://127.0.0.1:8000/accounts/reset_password/complete/"
     background_tasks.add_task(
         email_notificator.send_password_reset_email,
         email=user.email,
