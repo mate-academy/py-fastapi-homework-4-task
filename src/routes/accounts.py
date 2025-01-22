@@ -1,23 +1,23 @@
 from datetime import datetime, timezone
 from typing import cast
-
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-
 from config import (
+    BaseAppSettings,
+    get_accounts_email_notificator,
     get_jwt_auth_manager,
-    get_settings,
-    BaseAppSettings
+    get_settings
 )
+
 from database import (
-    get_db,
-    UserModel,
-    UserGroupModel,
-    UserGroupEnum,
     ActivationTokenModel,
     PasswordResetTokenModel,
-    RefreshTokenModel
+    RefreshTokenModel,
+    UserGroupEnum,
+    UserGroupModel,
+    UserModel,
+    get_db,
 )
 from exceptions import BaseSecurityError
 from notifications import EmailSenderInterface
@@ -35,6 +35,10 @@ from schemas import (
 )
 from security.interfaces import JWTAuthManagerInterface
 
+BASE_URL = "http://127.0.0.1/api/v1/accounts"
+ACTIVATE_ENDPOINT = f"{BASE_URL}/activate"
+LOGIN_ENDPOINT = f"{BASE_URL}/login"
+RESET_PASSWORD_ENDPOINT = f"{BASE_URL}/reset-password/complete"
 router = APIRouter()
 
 
@@ -48,41 +52,32 @@ router = APIRouter()
         409: {
             "description": "Conflict - User with this email already exists.",
             "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "A user with this email test@example.com already exists."
-                    }
-                }
+                "application/json": {"example": {"detail": "A user with this email test@example.com already exists."}}
             },
         },
         500: {
             "description": "Internal Server Error - An error occurred during user creation.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "An error occurred during user creation."
-                    }
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "An error occurred during user creation."}}},
         },
-    }
+    },
 )
 def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
-
     Registers a new user, hashes their password, and assigns them to the default user group.
     If a user with the same email already exists, an HTTP 409 error is raised.
     In case of any unexpected issues during the creation process, an HTTP 500 error is returned.
+    After successful registration, sends an activation email to the user.
     """
     existing_user = db.query(UserModel).filter_by(email=user_data.email).first()
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"A user with this email {user_data.email} already exists."
+            status_code=status.HTTP_409_CONFLICT, detail=f"A user with this email {user_data.email} already exists."
         )
 
     user_group = db.query(UserGroupModel).filter_by(name=UserGroupEnum.USER).first()
@@ -101,10 +96,11 @@ def register_user(
 
         db.commit()
         db.refresh(new_user)
+        activation_link = f"{ACTIVATE_ENDPOINT}?email={user_data.email}&token={activation_token.token}"
+        background_tasks.add_task(email_sender.send_activation_email, str(user_data.email), activation_link)
     except SQLAlchemyError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during user creation."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An error occurred during user creation."
         )
     else:
         return UserRegistrationResponseSchema.model_validate(new_user)
@@ -125,15 +121,11 @@ def register_user(
                     "examples": {
                         "invalid_token": {
                             "summary": "Invalid Token",
-                            "value": {
-                                "detail": "Invalid or expired activation token."
-                            }
+                            "value": {"detail": "Invalid or expired activation token."},
                         },
                         "already_active": {
                             "summary": "Account Already Active",
-                            "value": {
-                                "detail": "User account is already active."
-                            }
+                            "value": {"detail": "User account is already active."},
                         },
                     }
                 }
@@ -143,40 +135,39 @@ def register_user(
 )
 def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
-
-    Verifies the activation token for a user. If valid, activates the account
-    and deletes the token. If invalid or expired, raises an appropriate error.
+    Verifies the activation token for a user. If valid, activates the account,
+    deletes the token and sends an confirmation email. If invalid or expired, raises an appropriate error.
     """
-    token_record = db.query(ActivationTokenModel).join(UserModel).filter(
-        UserModel.email == activation_data.email,
-        ActivationTokenModel.token == activation_data.token
-    ).first()
+    token_record = (
+        db.query(ActivationTokenModel)
+        .join(UserModel)
+        .filter(UserModel.email == activation_data.email, ActivationTokenModel.token == activation_data.token)
+        .first()
+    )
 
-    if (not token_record or
-            cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc) < datetime.now(timezone.utc)):
+    if not token_record or cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc) < datetime.now(
+            timezone.utc
+    ):
         if token_record:
             db.delete(token_record)
             db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired activation token."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired activation token.")
 
     user = token_record.user
     if user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account is already active."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User account is already active.")
 
     user.is_active = True
     db.delete(token_record)
     db.commit()
 
+    background_tasks.add_task(email_sender.send_activation_complete_email, str(activation_data.email), LOGIN_ENDPOINT)
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -192,20 +183,19 @@ def activate_account(
 )
 def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
-
-    If the user exists and is active, invalidates any existing password reset tokens and generates a new one.
-    Always responds with a success message to avoid leaking user information.
+    If the user exists and is active, invalidates any existing password reset tokens, generates a new one,
+    and sends a password reset email. Always responds with a success message to avoid leaking user information.
     """
     user = db.query(UserModel).filter_by(email=data.email).first()
 
     if not user or not user.is_active:
-        return MessageResponseSchema(
-            message="If you are registered, you will receive an email with instructions."
-        )
+        return MessageResponseSchema(message="If you are registered, you will receive an email with instructions.")
 
     db.query(PasswordResetTokenModel).filter_by(user_id=user.id).delete()
 
@@ -213,9 +203,9 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    return MessageResponseSchema(
-        message="If you are registered, you will receive an email with instructions."
-    )
+    reset_link = f"{RESET_PASSWORD_ENDPOINT}?email={data.email}&token={reset_token.token}"
+    background_tasks.add_task(email_sender.send_password_reset_email, str(data.email), reset_link)
+    return MessageResponseSchema(message="If you are registered, you will receive an email with instructions.")
 
 
 @router.post(
@@ -226,25 +216,16 @@ def request_password_reset_token(
     status_code=status.HTTP_200_OK,
     responses={
         400: {
-            "description":
-                "Bad Request - The provided email or token is invalid, "
-                "the token has expired, or the user account is not active."
-            ,
+            "description": "Bad Request - The provided email or token is invalid, "
+                           "the token has expired, or the user account is not active.",
             "content": {
                 "application/json": {
                     "examples": {
                         "invalid_email_or_token": {
                             "summary": "Invalid Email or Token",
-                            "value": {
-                                "detail": "Invalid email or token."
-                            }
+                            "value": {"detail": "Invalid email or token."},
                         },
-                        "expired_token": {
-                            "summary": "Expired Token",
-                            "value": {
-                                "detail": "Invalid email or token."
-                            }
-                        }
+                        "expired_token": {"summary": "Expired Token", "value": {"detail": "Invalid email or token."}},
                     }
                 }
             },
@@ -252,31 +233,25 @@ def request_password_reset_token(
         500: {
             "description": "Internal Server Error - An error occurred while resetting the password.",
             "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "An error occurred while resetting the password."
-                    }
-                }
+                "application/json": {"example": {"detail": "An error occurred while resetting the password."}}
             },
         },
     },
 )
 def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
-
     Validates the token and updates the user's password if the token is valid and not expired.
-    Deletes the token after successful password reset.
+    Deletes the token after successful password reset and sends a confirmation email.
     """
     user = db.query(UserModel).filter_by(email=data.email).first()
     if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email or token."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token.")
 
     token_record = db.query(PasswordResetTokenModel).filter_by(user_id=user.id).first()
 
@@ -286,20 +261,17 @@ def reset_password(
         if token_record:
             db.delete(token_record)
             db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email or token."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token.")
 
     try:
         user.password = data.password
         db.delete(token_record)
         db.commit()
+        background_tasks.add_task(email_sender.send_password_reset_complete_email, str(data.email), LOGIN_ENDPOINT)
     except SQLAlchemyError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while resetting the password."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An error occurred while resetting the password."
         )
 
     return MessageResponseSchema(message="Password reset successfully.")
@@ -314,32 +286,16 @@ def reset_password(
     responses={
         401: {
             "description": "Unauthorized - Invalid email or password.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Invalid email or password."
-                    }
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "Invalid email or password."}}},
         },
         403: {
             "description": "Forbidden - User account is not activated.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "User account is not activated."
-                    }
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "User account is not activated."}}},
         },
         500: {
             "description": "Internal Server Error - An error occurred while processing the request.",
             "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "An error occurred while processing the request."
-                    }
-                }
+                "application/json": {"example": {"detail": "An error occurred while processing the request."}}
             },
         },
     },
@@ -352,7 +308,6 @@ def login_user(
 ) -> UserLoginResponseSchema:
     """
     Endpoint for user login.
-
     Authenticates a user using their email and password.
     If authentication is successful, creates a new refresh token and
     returns both access and refresh tokens.
@@ -374,9 +329,7 @@ def login_user(
 
     try:
         refresh_token = RefreshTokenModel.create(
-            user_id=user.id,
-            days_valid=settings.LOGIN_TIME_DAYS,
-            token=jwt_refresh_token
+            user_id=user.id, days_valid=settings.LOGIN_TIME_DAYS, token=jwt_refresh_token
         )
         db.add(refresh_token)
         db.flush()
@@ -404,33 +357,15 @@ def login_user(
     responses={
         400: {
             "description": "Bad Request - The provided refresh token is invalid or expired.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Token has expired."
-                    }
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "Token has expired."}}},
         },
         401: {
             "description": "Unauthorized - Refresh token not found.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Refresh token not found."
-                    }
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "Refresh token not found."}}},
         },
         404: {
             "description": "Not Found - The user associated with the token does not exist.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "User not found."
-                    }
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "User not found."}}},
         },
     },
 )
@@ -441,7 +376,6 @@ def refresh_access_token(
 ) -> TokenRefreshResponseSchema:
     """
     Endpoint to refresh an access token.
-
     Validates the provided refresh token, extracts the user ID from it, and issues
     a new access token. If the token is invalid or expired, an error is returned.
     """
