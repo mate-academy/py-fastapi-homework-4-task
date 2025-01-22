@@ -71,7 +71,7 @@ router = APIRouter()
         status.HTTP_422_UNPROCESSABLE_ENTITY: {
             "description": "Validation Error",
             "content": {
-                "application/jsom": {
+                "application/json": {
                     "examples": {
                         "invalid_name": {
                             "summary": "Invalid Name",
