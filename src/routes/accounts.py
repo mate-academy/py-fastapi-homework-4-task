@@ -77,7 +77,7 @@ def register_user(
     existing_user = db.query(UserModel).filter_by(email=user_data.email).first()
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=f"A user with this email {user_data.email} already exists."
+            status_code=status.HTTP_409_CONFLICT, detail=f"A user with this email already exists."
         )
 
     user_group = db.query(UserGroupModel).filter_by(name=UserGroupEnum.USER).first()
