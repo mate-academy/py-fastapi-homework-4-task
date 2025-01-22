@@ -1,8 +1,8 @@
-from pydantic import BaseModel, validator, field_validator
-from fastapi import UploadFile, File, Form, HTTPException
 import datetime
-from typing import Optional, Any
-from validation.profile import validate_gender, validate_image, validate_name, validate_birth_date
+from typing import Any, Optional
+
+from fastapi import File, Form, UploadFile
+from pydantic import BaseModel
 
 
 class ProfileRequestForm(BaseModel):
@@ -21,7 +21,7 @@ class ProfileRequestForm(BaseModel):
         gender: Optional[str] = Form(),
         date_of_birth: Optional[datetime.date] = Form(),
         info: Optional[str] = Form(),
-        avatar: Optional[UploadFile] = File()
+        avatar: Optional[UploadFile] = File(),
     ) -> Any:
         return cls(
             first_name=first_name,
@@ -29,7 +29,7 @@ class ProfileRequestForm(BaseModel):
             gender=gender,
             date_of_birth=date_of_birth,
             info=info,
-            avatar=avatar
+            avatar=avatar,
         )
 
     class Config:

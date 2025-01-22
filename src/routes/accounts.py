@@ -72,7 +72,6 @@ BASE_URL = "http://127.0.0.1/api/v1/accounts"
     }
 )
 def register_user(
-        requets: Request,
         background_tasks: BackgroundTasks,
         user_data: UserRegistrationRequestSchema,
         db: Session = Depends(get_db),
@@ -116,7 +115,8 @@ def register_user(
         )
     else:
         activation_link = f"{BASE_URL}/activate/?token={activation_token.token}"
-        sender.send_activation_email(
+        background_tasks.add_task(
+            sender.send_activation_email,
             email=user_data.email,
             activation_link=activation_link,
         )
@@ -157,6 +157,7 @@ def register_user(
 )
 def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
         sender: EmailSender = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
@@ -192,7 +193,8 @@ def activate_account(
     db.delete(token_record)
     db.commit()
 
-    sender.send_activation_complete_email(
+    background_tasks.add_task(
+        sender.send_activation_complete_email,
         email=user.email,
         login_link=f"{BASE_URL}/login/",
     )
@@ -212,6 +214,7 @@ def activate_account(
 )
 def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
         sender: EmailSender = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
@@ -234,7 +237,8 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    sender.send_password_reset_email(
+    background_tasks.add_task(
+        sender.send_password_reset_email,
         email=user.email,
         reset_link=f"{BASE_URL}/reset-password/complete?token={reset_token.token}"
     )
@@ -289,6 +293,7 @@ def request_password_reset_token(
 )
 def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
         sender: EmailSender = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
@@ -329,7 +334,8 @@ def reset_password(
             detail="An error occurred while resetting the password."
         )
 
-    sender.send_password_reset_complete_email(
+    background_tasks.add_task(
+        sender.send_password_reset_complete_email,
         email=user.email,
         login_link=f"{BASE_URL}/login/",
     )
