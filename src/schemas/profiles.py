@@ -4,6 +4,7 @@ import datetime
 from typing import Optional, Any
 from validation.profile import validate_gender, validate_image, validate_name, validate_birth_date
 
+
 class ProfileRequestSchema(BaseModel):
     first_name: Optional[str]
     last_name: Optional[str]
