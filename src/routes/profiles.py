@@ -99,10 +99,11 @@ def create_profile(
         profile.gender = data_profile.gender
         profile.date_of_birth = data_profile.date_of_birth
         profile.info = data_profile.info
-        # profile.avatar = avatar_name
 
         db.add(profile)
         db.commit()
+
+        profile.avatar = avatar_name
 
         return profile
     except TokenExpiredError:
