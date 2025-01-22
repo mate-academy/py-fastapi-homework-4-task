@@ -1,39 +1,50 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from exceptions import (
-    S3ConnectionError,
-    S3FileUploadError
-)
 
-from schemas.profiles import ProfileSchema, ProfileResponseSchema
-from config.dependencies import get_s3_storage_client
-from storages.interfaces import S3StorageInterface
-from security.interfaces import JWTAuthManagerInterface
+from config import get_jwt_auth_manager, get_s3_storage_client
+from database import UserProfileModel, get_db, UserModel
+from exceptions import TokenExpiredError
+from schemas.profiles import ProfileRequestForm
 from security.http import get_token
-from database import get_db
-from database.models.accounts import UserModel, UserProfileModel
-from config.dependencies import get_jwt_auth_manager
-
+from security.token_manager import JWTAuthManager
+from storages import S3StorageInterface
+from validation.profile import validate_name, validate_image, validate_gender, validate_birth_date
 
 router = APIRouter()
 
 
-@router.post("/users/{user_id}/profile/", response_model=ProfileResponseSchema, status_code=status.HTTP_201_CREATED)
-async def create_profile(
+@router.post(
+    "/users/{user_id}/profile/",
+    status_code=201
+)
+def profile(
         user_id: int,
-        profile_data: ProfileSchema,
-        token: str = Depends(get_token),
-        s3_client: S3StorageInterface = Depends(get_s3_storage_client),
+        profile_form: ProfileRequestForm = Depends(ProfileRequestForm.as_form),
         db: Session = Depends(get_db),
-        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+        token: str = Depends(get_token),
+        jwt_manager: JWTAuthManager = Depends(get_jwt_auth_manager),
+        storage: S3StorageInterface = Depends(get_s3_storage_client),
 ):
-    data = jwt_manager.decode_access_token(token)
-
-    is_expired = data.get("exp") <= 0
-    if is_expired:
+    try:
+        data = jwt_manager.decode_access_token(token)
+    except TokenExpiredError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired."
+        )
+
+    try:
+        validate_name(profile_form.first_name)
+        validate_name(profile_form.last_name)
+        validate_gender(profile_form.gender)
+        validate_birth_date(profile_form.date_of_birth)
+        if not profile_form.info.strip():
+            raise ValueError("Info field cannot be empty or contain only spaces.")
+        validate_image(profile_form.avatar)
+    except ValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(err)
         )
 
     current_user = db.query(UserModel).filter_by(id=data.get("user_id")).first()
@@ -59,25 +70,32 @@ async def create_profile(
         )
 
     try:
-        await s3_client.upload_file(profile_data.first_name, profile_data.avatar)
-        file_url = s3_client.get_file_url(profile_data.first_name)
-    except (S3ConnectionError, S3FileUploadError):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload avatar. Please try again later."
-        )
+        file_name = f"avatars/{user.id}_avatar.jpg"
+        file_data = profile_form.avatar.file.read()
+        storage.upload_file(file_name, file_data)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to upload avatar. Please try again later.")
 
-    new_profile = UserProfileModel(
-        first_name=profile_data.first_name,
-        last_name=profile_data.last_name,
-        avatar=file_url,
-        gender=profile_data.gender,
-        date_of_birth=profile_data.date_of_birth,
-        info=profile_data.info,
-        user_id=user.id
+    profile = UserProfileModel(
+        first_name=profile_form.first_name.lower(),
+        last_name=profile_form.last_name.lower(),
+        gender=profile_form.gender,
+        date_of_birth=profile_form.date_of_birth,
+        info=profile_form.info,
+        user_id=user.id,
+        avatar=file_name,
     )
-    db.add(new_profile)
+    db.add(profile)
     db.commit()
-    db.refresh(new_profile)
+    db.refresh(profile)
 
-    return new_profile
+    return {
+        "id": profile.id,
+        "user_id": user.id,
+        "first_name": profile_form.first_name.lower(),
+        "last_name": profile_form.last_name.lower(),
+        "gender": profile_form.gender,
+        "date_of_birth": profile_form.date_of_birth,
+        "info": profile_form.info,
+        "avatar": storage.get_file_url(file_name)
+    }

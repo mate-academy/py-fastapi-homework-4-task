@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 from typing import cast
+from urllib.parse import urljoin
 
 from fastapi import (
     APIRouter,
     Depends,
     status,
     HTTPException,
-    BackgroundTasks
+    BackgroundTasks,
+    Request
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -76,6 +78,7 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        request: Request,
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
         email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -109,17 +112,17 @@ async def register_user(
         db.add(activation_token)
         db.commit()
         db.refresh(new_user)
-        background_tasks.add_task(
-            email_notificator.send_activation_email,
-            new_user.email,
-            f"http://localhost:8000/api/v1/accounts/activate/?email={new_user.email}&activation_token={activation_token.token}"
-        )
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during user creation."
         )
     else:
+        background_tasks.add_task(
+            email_notificator.send_activation_email,
+            email=new_user.email,
+            activation_link="http://127.0.0.1:8000/accounts/activate"
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
@@ -154,7 +157,7 @@ async def register_user(
         },
     },
 )
-def activate_account(
+async def activate_account(
         user_data: UserActivationRequestSchema,
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
@@ -194,7 +197,7 @@ def activate_account(
     background_tasks.add_task(
         email_notificator.send_activation_complete_email,
         user.email,
-        f"http://localhost:8000/api/v1/accounts/login/"
+        "http://127.0.0.1:8000/accounts/login"
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -210,7 +213,7 @@ def activate_account(
     ),
     status_code=status.HTTP_200_OK,
 )
-def request_password_reset_token(
+async def request_password_reset_token(
         data: PasswordResetRequestSchema,
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
@@ -238,7 +241,7 @@ def request_password_reset_token(
     background_tasks.add_task(
         email_notificator.send_password_reset_email,
         user.email,
-        f"http://localhost:8000/api/v1/accounts/reset-password/complete/"
+        "http://127.0.0.1:8000/accounts/reset-password"
     )
 
     return MessageResponseSchema(
@@ -289,7 +292,7 @@ def request_password_reset_token(
         },
     },
 )
-def reset_password(
+async def reset_password(
         data: PasswordResetCompleteRequestSchema,
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
@@ -332,9 +335,9 @@ def reset_password(
             detail="An error occurred while resetting the password."
         )
     background_tasks.add_task(
-        email_notificator.send_password_reset_email,
+        email_notificator.send_password_reset_complete_email,
         user.email,
-        f"http://localhost:8000/api/v1/accounts/reset-password/complete/"
+        "http://127.0.0.1:8000/accounts/login"
     )
 
     return MessageResponseSchema(message="Password reset successfully.")
