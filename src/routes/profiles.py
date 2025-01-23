@@ -81,7 +81,7 @@ def create_profile(
         profile = UserProfileModel()
 
         avatar_name = f"avatars/{user_id}_avatar.jpg"
-        avatar = asyncio.run(data_profile.avatar.read())
+        avatar = data_profile.avatar.file.read()
         try:
             s3_client.upload_file(avatar_name, avatar)
         except S3FileUploadError:
