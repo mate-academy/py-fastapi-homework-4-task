@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from database import (
+from src.database import (
     get_db,
     MovieModel,
     CountryModel,
@@ -10,7 +10,7 @@ from database import (
     ActorModel,
     LanguageModel
 )
-from schemas import (
+from src.schemas import (
     MovieListResponseSchema,
     MovieListItemSchema,
     MovieDetailSchema,

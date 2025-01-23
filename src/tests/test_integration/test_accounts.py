@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from database import (
+from src.database import (
     UserModel,
     ActivationTokenModel,
     PasswordResetTokenModel,

@@ -3,7 +3,7 @@ import pytest
 from io import BytesIO
 from PIL import Image
 
-from database import UserModel, UserProfileModel
+from src.database.models.accounts import UserModel, UserProfileModel
 
 
 @pytest.mark.e2e
@@ -62,7 +62,8 @@ def test_create_user_profile(e2e_client, db_session, settings, s3_client):
     assert "avatar" in profile_data, "Avatar URL is missing!"
 
     avatar_key = f"avatars/{user.id}_avatar.jpg"
-    assert profile_data["avatar"] == s3_client.get_file_url(avatar_key), \
+    avatar_url = s3_client.get_file_url(settings.S3_BUCKET_NAME, avatar_key)
+    assert profile_data["avatar"] == avatar_url, \
         f"Invalid avatar URL: {profile_data['avatar']}"
 
     profile_in_db = db_session.query(UserProfileModel).filter_by(user_id=user.id).first()
@@ -78,3 +79,5 @@ def test_create_user_profile(e2e_client, db_session, settings, s3_client):
 
     response = s3.list_objects_v2(Bucket=settings.S3_BUCKET_NAME, Prefix=avatar_key)
     assert "Contents" in response, f"Avatar {avatar_key} was not found in MinIO!"
+    assert any(obj['Key'] == avatar_key for obj in response['Contents']), \
+        f"Avatar {avatar_key} was not found in MinIO!"
