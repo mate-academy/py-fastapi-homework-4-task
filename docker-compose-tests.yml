@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: ./docker/tests/Dockerfile
     container_name: backend_theater_test
-    command: [ "pytest", "-m", "e2e", "--maxfail=5", "--disable-warnings", "-v", "--tb=short"]
+    command: [ "pytest", "./src/tests", "-m", "e2e", "--maxfail=5", "--disable-warnings", "-v", "--tb=short" ]
     environment:
       - PYTHONPATH=/usr/src/fastapi
       - ENVIRONMENT=testing
@@ -25,7 +25,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./src:/usr/src/fastapi
+      - ./src:/usr/src/fastapi/src
     networks:
       - theater_network_test
 

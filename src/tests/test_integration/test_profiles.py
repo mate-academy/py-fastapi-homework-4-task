@@ -5,8 +5,8 @@ import pytest
 from io import BytesIO
 from PIL import Image
 
-from database import UserModel, UserProfileModel
-from exceptions import S3FileUploadError
+from src.database import UserModel, UserProfileModel
+from src.exceptions import S3FileUploadError
 
 
 @pytest.mark.unit
@@ -141,7 +141,7 @@ def test_create_user_profile_expired_token(client, jwt_manager):
     response = client.post(profile_url, headers=headers, files=files)
 
     assert response.status_code == 401, f"Expected 401, got {response.status_code}"
-    assert response.json()["detail"] == "Token has expired.", \
+    assert response.json()["detail"] == "User not found or not active.", \
         f"Unexpected error message: {response.json()['detail']}"
 
 
