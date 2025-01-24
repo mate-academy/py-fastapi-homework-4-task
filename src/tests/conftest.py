@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import insert
 
-from src.config import get_settings, get_accounts_email_notificator, get_s3_storage_client
+from src.config.dependencies import get_settings, get_accounts_email_notificator, get_s3_storage_client
 from src.database import (
     reset_database,
     get_db_contextmanager,
