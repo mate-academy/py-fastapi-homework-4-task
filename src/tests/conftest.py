@@ -7,7 +7,7 @@ from database import (
     reset_database,
     get_db_contextmanager,
     UserGroupEnum,
-    UserGroupModel
+    UserGroupModel,
 )
 from database.populate import CSVDatabaseSeeder
 from main import app
@@ -18,15 +18,9 @@ from tests.doubles.stubs.emails import StubEmailSender
 
 
 def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "e2e: End-to-end tests"
-    )
-    config.addinivalue_line(
-        "markers", "order: Specify the order of test execution"
-    )
-    config.addinivalue_line(
-        "markers", "unit: Unit tests"
-    )
+    config.addinivalue_line("markers", "e2e: End-to-end tests")
+    config.addinivalue_line("markers", "order: Specify the order of test execution")
+    config.addinivalue_line("markers", "unit: Unit tests")
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -62,7 +56,7 @@ def s3_client(settings):
         endpoint_url=settings.S3_STORAGE_ENDPOINT,
         access_key=settings.S3_STORAGE_ACCESS_KEY,
         secret_key=settings.S3_STORAGE_SECRET_KEY,
-        bucket_name=settings.S3_BUCKET_NAME
+        bucket_name=settings.S3_BUCKET_NAME,
     )
 
 
@@ -94,7 +88,7 @@ def jwt_manager(settings):
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
-        algorithm=settings.JWT_SIGNING_ALGORITHM
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
     )
 
 
@@ -108,7 +102,9 @@ def seed_user_groups(db_session):
 
 @pytest.fixture(scope="function")
 def seed_database(db_session, settings):
-    seeder = CSVDatabaseSeeder(csv_file_path=settings.PATH_TO_MOVIES_CSV, db_session=db_session)
+    seeder = CSVDatabaseSeeder(
+        csv_file_path=settings.PATH_TO_MOVIES_CSV, db_session=db_session
+    )
     if not seeder.is_db_populated():
         seeder.seed()
     yield db_session
