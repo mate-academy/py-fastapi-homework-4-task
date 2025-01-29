@@ -8,7 +8,9 @@ class EmailSenderInterface(ABC):
         pass
 
     @abstractmethod
-    def send_activation_complete_email(self, email: str, login_link: str) -> None:
+    def send_activation_complete_email(
+        self, email: str, login_link: str
+    ) -> None:
         pass
 
     @abstractmethod
@@ -16,5 +18,7 @@ class EmailSenderInterface(ABC):
         pass
 
     @abstractmethod
-    def send_password_reset_complete_email(self, email: str, login_link: str) -> None:
+    def send_password_reset_complete_email(
+        self, email: str, login_link: str
+    ) -> None:
         pass
