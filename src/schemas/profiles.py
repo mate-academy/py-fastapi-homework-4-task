@@ -2,10 +2,7 @@ from datetime import datetime, date
 from typing import Any
 
 from fastapi import Form, File, UploadFile
-from pydantic import BaseModel, field_validator
-
-import validation
-from database.models.accounts import GenderEnum
+from pydantic import BaseModel
 
 
 class ProfileRequestForm(BaseModel):
