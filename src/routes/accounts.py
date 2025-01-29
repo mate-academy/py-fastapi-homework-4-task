@@ -236,7 +236,7 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    reset_link = "http://127.0.0.1:8000/api/v1/accounts/password-reset/request/"
+    reset_link = f"http://127.0.0.1:8000/api/v1/accounts/reset-password/complete?token={reset_token.token}"
 
     background_tasks.add_task(
         email_notificator.send_password_reset_email,

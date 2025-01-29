@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from fastapi.params import Depends
-from pydantic_core._pydantic_core import ValidationError
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
