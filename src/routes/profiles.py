@@ -1,6 +1,5 @@
 from fastapi import APIRouter, HTTPException, status
 from fastapi.params import Depends
-from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -53,7 +52,7 @@ def profile(
             )
 
         validate_image(profile_form.avatar)
-    except ValidationError as error:
+    except ValueError as error:
         raise HTTPException(
             status_code=422, detail=str(error)
         )
