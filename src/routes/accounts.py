@@ -72,7 +72,7 @@ def register_user(
         background_tasks: BackgroundTasks,
         user_data: UserRegistrationRequestSchema,
         db: Session = Depends(get_db),
-        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator())
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -151,9 +151,9 @@ def register_user(
 )
 def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
-        email_notificator=Depends(get_accounts_email_notificator()),
-        background_tasks: BackgroundTasks = Depends(get_settings)
+        email_notificator=Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -207,9 +207,9 @@ def activate_account(
 )
 def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
-        email_notificator=Depends(get_accounts_email_notificator()),
-        background_tasks: BackgroundTasks = Depends(get_settings)
+        email_notificator=Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -286,9 +286,9 @@ def request_password_reset_token(
 )
 def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
-        email_notificator=Depends(get_accounts_email_notificator()),
-        background_tasks: BackgroundTasks = Depends(get_settings)
+        email_notificator=Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.

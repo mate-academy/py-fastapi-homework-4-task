@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from starlette import status
 
 from config import get_s3_storage_client, get_jwt_auth_manager
-from exceptions import BaseSecurityError, storage, S3FileUploadError
+from exceptions import BaseSecurityError, S3FileUploadError
 from schemas.profiles import ProfileResponseSchema, ProfileRequestForm
 from database import get_db, UserModel, UserGroupEnum, UserProfileModel
 from security.token_manager import JWTAuthManager
@@ -23,8 +23,8 @@ def profile_creation(
         access_token: str,
         db: Session = Depends(get_db),
         s3_client: S3StorageInterface = Depends(get_s3_storage_client),
-        profile_form=Depends(ProfileRequestForm.as_form()),
-        manager: JWTAuthManager = Depends(get_jwt_auth_manager())
+        profile_form: ProfileRequestForm = Depends(ProfileRequestForm.as_form),
+        manager: JWTAuthManager = Depends(get_jwt_auth_manager)
 ):
     try:
         manager.verify_access_token_or_raise(access_token)
