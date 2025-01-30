@@ -232,7 +232,7 @@ def request_password_reset_token(
     db.commit()
 
     bg_tasks.add_task(
-        email_sender.send_password_reset_complete_email,
+        email_sender.send_password_reset_email,
         email=str(data.email),
         login_link=f"{BASE_LINK}reset-password/complete/"
     )
