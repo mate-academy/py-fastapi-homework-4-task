@@ -64,7 +64,7 @@ def profile(
         file = f"avatars/{user_id}_avatar.jpg"
         content = profile_form.avatar.file.read()
         storage.upload_file(file, content)
-        avatar_url = storage.get_file_url(file) # noqa
+        avatar_url = storage.get_file_url(file)
     except Exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Failed to upload avatar. Please try again later.")
@@ -77,7 +77,7 @@ def profile(
             gender=profile_form.gender,
             date_of_birth=profile_form.date_of_birth,
             info=profile_form.info,
-            avatar=file
+            avatar=avatar_url
         )
         db.add(profile)
         db.commit()

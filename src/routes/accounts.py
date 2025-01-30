@@ -234,7 +234,7 @@ def request_password_reset_token(
     bg_tasks.add_task(
         email_sender.send_password_reset_email,
         email=str(data.email),
-        login_link=f"{BASE_LINK}reset-password/complete/"
+        reset_link=f"{BASE_LINK}reset-password/complete/"
     )
 
     return MessageResponseSchema(
