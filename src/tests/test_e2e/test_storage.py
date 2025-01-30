@@ -3,7 +3,7 @@ import pytest
 from io import BytesIO
 from PIL import Image
 
-from database import UserModel, UserProfileModel
+from src.database import UserModel, UserProfileModel
 
 
 @pytest.mark.e2e
@@ -27,7 +27,9 @@ def test_create_user_profile(e2e_client, db_session, settings, s3_client):
     assert user, f"User {user_email} should exist!"
 
     login_url = "/api/v1/accounts/login/"
-    response = e2e_client.post(login_url, json={"email": user_email, "password": user_password})
+    response = e2e_client.post(
+        login_url, json={"email": user_email, "password": user_password}
+    )
 
     assert response.status_code == 201, f"Expected 201, got {response.status_code}"
     tokens = response.json()
@@ -52,7 +54,9 @@ def test_create_user_profile(e2e_client, db_session, settings, s3_client):
 
     profile_response = e2e_client.post(profile_url, headers=headers, files=files)
 
-    assert profile_response.status_code == 201, f"Expected 201, got {profile_response.status_code}"
+    assert (
+        profile_response.status_code == 201
+    ), f"Expected 201, got {profile_response.status_code}"
     profile_data = profile_response.json()
 
     assert profile_data["first_name"] == "john"
@@ -62,10 +66,13 @@ def test_create_user_profile(e2e_client, db_session, settings, s3_client):
     assert "avatar" in profile_data, "Avatar URL is missing!"
 
     avatar_key = f"avatars/{user.id}_avatar.jpg"
-    assert profile_data["avatar"] == s3_client.get_file_url(avatar_key), \
-        f"Invalid avatar URL: {profile_data['avatar']}"
+    assert profile_data["avatar"] == s3_client.get_file_url(
+        avatar_key
+    ), f"Invalid avatar URL: {profile_data['avatar']}"
 
-    profile_in_db = db_session.query(UserProfileModel).filter_by(user_id=user.id).first()
+    profile_in_db = (
+        db_session.query(UserProfileModel).filter_by(user_id=user.id).first()
+    )
     assert profile_in_db, f"Profile for user {user.id} should exist!"
     assert profile_in_db.avatar, "Avatar path should not be empty!"
 
