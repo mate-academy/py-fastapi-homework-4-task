@@ -38,20 +38,6 @@ def profile(
         )
     token_user_id = decoded_token.get("user_id")
 
-    try:
-        validation.validate_name(profile_form.first_name)
-        validation.validate_name(profile_form.last_name)
-        validation.validate_gender(profile_form.gender)
-        validation.validate_birth_date(profile_form.date_of_birth)
-        if not profile_form.info.strip():
-            raise ValueError("Info field cannot be empty or contain only spaces.")
-        validation.validate_image(profile_form.avatar)
-    except ValueError as err:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(err)
-        )
-
     request_user = db.query(UserModel).filter(UserModel.id == token_user_id).first()
     if user_id != token_user_id and request_user.group.name != UserGroupEnum.ADMIN:
         raise HTTPException(

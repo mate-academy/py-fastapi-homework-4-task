@@ -6,9 +6,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from config import (
+    BaseAppSettings,
     get_jwt_auth_manager,
     get_settings,
-    BaseAppSettings, get_accounts_email_notificator
+    get_accounts_email_notificator
 )
 from database import (
     get_db,
@@ -37,9 +38,7 @@ from security.interfaces import JWTAuthManagerInterface
 
 
 router = APIRouter()
-ACTIVATION_LINK = "http://127.0.0.1/accounts/activate/"
-LOGIN_LINK = "http://127.0.0.1/accounts/login/"
-RESET_LINK = "http://127.0.0.1/accounts/reset-password/complete/"
+settings = get_settings()
 
 
 @router.post(
@@ -116,7 +115,7 @@ def register_user(
         background_tasks.add_task(
             email_sender.send_activation_email,
             email=new_user.email,
-            activation_link=ACTIVATION_LINK
+            activation_link=settings.ACTIVATION_LINK
         )
 
         return UserRegistrationResponseSchema.model_validate(new_user)
@@ -194,7 +193,7 @@ def activate_account(
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         email=str(activation_data.email),
-        login_link=LOGIN_LINK
+        login_link=settings.LOGIN_LINK
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -238,7 +237,7 @@ def request_password_reset_token(
     background_tasks.add_task(
         email_sender.send_password_reset_email,
         email=str(data.email),
-        reset_link=RESET_LINK
+        reset_link=settings.RESET_LINK
     )
 
     return MessageResponseSchema(
@@ -335,7 +334,7 @@ def reset_password(
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
         email=str(data.email),
-        login_link=LOGIN_LINK
+        login_link=settings.LOGIN_LINK
     )
 
     return MessageResponseSchema(message="Password reset successfully.")
