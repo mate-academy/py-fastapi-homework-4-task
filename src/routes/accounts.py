@@ -1,14 +1,15 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from config import (
+    BaseAppSettings,
+    get_accounts_email_notificator,
     get_jwt_auth_manager,
-    get_settings,
-    BaseAppSettings
+    get_settings
 )
 from database import (
     get_db,
@@ -34,6 +35,11 @@ from schemas import (
     TokenRefreshResponseSchema
 )
 from security.interfaces import JWTAuthManagerInterface
+
+BASE_URL = "http://127.0.0.1/accounts"
+ACTIVATE_ENDPOINT = f"{BASE_URL}/activate"
+LOGIN_ENDPOINT = f"{BASE_URL}/login"
+RESET_PASSWORD_ENDPOINT = f"{BASE_URL}/reset-password/complete"
 
 router = APIRouter()
 
@@ -69,7 +75,9 @@ router = APIRouter()
 )
 def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -101,6 +109,9 @@ def register_user(
 
         db.commit()
         db.refresh(new_user)
+        activation_link = f"{ACTIVATE_ENDPOINT}?email={user_data.email}&token={activation_token.token}"
+        background_tasks.add_task(email_sender.send_activation_email,
+                                  str(user_data.email), activation_link)
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -143,7 +154,9 @@ def register_user(
 )
 def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -151,31 +164,35 @@ def activate_account(
     Verifies the activation token for a user. If valid, activates the account
     and deletes the token. If invalid or expired, raises an appropriate error.
     """
-    token_record = db.query(ActivationTokenModel).join(UserModel).filter(
-        UserModel.email == activation_data.email,
-        ActivationTokenModel.token == activation_data.token
-    ).first()
+    token_record = (
+        db.query(ActivationTokenModel)
+        .join(UserModel)
+        .filter(UserModel.email == activation_data.email,
+                ActivationTokenModel.token == activation_data.token)
+        .first()
+    )
 
-    if (not token_record or
-            cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc) < datetime.now(timezone.utc)):
+    if not token_record or cast(datetime, token_record.expires_at).replace(
+            tzinfo=timezone.utc) < datetime.now(
+        timezone.utc
+    ):
         if token_record:
             db.delete(token_record)
             db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired activation token."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid or expired activation token.")
 
     user = token_record.user
     if user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account is already active."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="User account is already active.")
 
     user.is_active = True
     db.delete(token_record)
     db.commit()
+
+    background_tasks.add_task(email_sender.send_activation_complete_email,
+                              str(activation_data.email), LOGIN_ENDPOINT)
 
     return MessageResponseSchema(message="User account activated successfully.")
 
@@ -192,7 +209,9 @@ def activate_account(
 )
 def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -204,8 +223,7 @@ def request_password_reset_token(
 
     if not user or not user.is_active:
         return MessageResponseSchema(
-            message="If you are registered, you will receive an email with instructions."
-        )
+            message="If you are registered, you will receive an email with instructions.")
 
     db.query(PasswordResetTokenModel).filter_by(user_id=user.id).delete()
 
@@ -213,9 +231,12 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
+    reset_link = f"{RESET_PASSWORD_ENDPOINT}?email={data.email}&token={reset_token.token}"
+    background_tasks.add_task(email_sender.send_password_reset_email, str(data.email),
+                              reset_link)
+
     return MessageResponseSchema(
-        message="If you are registered, you will receive an email with instructions."
-    )
+        message="If you are registered, you will receive an email with instructions.")
 
 
 @router.post(
@@ -282,7 +303,8 @@ def reset_password(
 
     expires_at = cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc)
 
-    if not token_record or token_record.token != data.token or expires_at < datetime.now(timezone.utc):
+    if not token_record or token_record.token != data.token or expires_at < datetime.now(
+            timezone.utc):
         if token_record:
             db.delete(token_record)
             db.commit()
@@ -357,7 +379,8 @@ def login_user(
     If authentication is successful, creates a new refresh token and
     returns both access and refresh tokens.
     """
-    user = cast(UserModel, db.query(UserModel).filter_by(email=login_data.email).first())
+    user = cast(UserModel,
+                db.query(UserModel).filter_by(email=login_data.email).first())
     if not user or not user.verify_password(login_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -454,7 +477,8 @@ def refresh_access_token(
             detail=str(error),
         )
 
-    refresh_token_record = db.query(RefreshTokenModel).filter_by(token=token_data.refresh_token).first()
+    refresh_token_record = db.query(RefreshTokenModel).filter_by(
+        token=token_data.refresh_token).first()
     if not refresh_token_record:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
