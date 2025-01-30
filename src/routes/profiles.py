@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from config import get_jwt_auth_manager, get_s3_storage_client
 from database import UserProfileModel, get_db, UserModel
 from exceptions import TokenExpiredError
-from schemas.profiles import ProfileRequestForm
+from schemas.profiles import ProfileRequestForm, ProfileResponseForm
 from security.http import get_token
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface
@@ -70,7 +70,11 @@ def upload_avatar(storage: S3StorageInterface, user_id: int, avatar: UploadFile)
         )
 
 
-@router.post("/users/{user_id}/profile/", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/users/{user_id}/profile/",
+    response_model=ProfileResponseForm,
+    status_code=status.HTTP_201_CREATED
+)
 def create_profile(
     user_id: int,
     profile_form: ProfileRequestForm = Depends(ProfileRequestForm.as_form),
@@ -106,13 +110,11 @@ def create_profile(
     db.commit()
     db.refresh(profile)
 
-    return {
-        "id": profile.id,
-        "user_id": profile.user_id,
-        "first_name": profile.first_name,
-        "last_name": profile.last_name,
-        "gender": profile.gender,
-        "date_of_birth": profile.date_of_birth,
-        "info": profile.info,
-        "avatar": storage.get_file_url(avatar_file_name)
-    }
+    return ProfileResponseForm(
+        first_name=profile.first_name,
+        last_name=profile.last_name,
+        gender=profile.gender,
+        date_of_birth=profile.date_of_birth,
+        info=profile.info,
+        avatar=storage.get_file_url(avatar_file_name)
+    )

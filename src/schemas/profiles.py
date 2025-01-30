@@ -32,6 +32,15 @@ class ProfileRequestForm(BaseModel):
             avatar=avatar
         )
 
+
+class ProfileResponseForm(BaseModel):
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
+    avatar: str
+
     model_config = {
         "from_attributes": True
     }
