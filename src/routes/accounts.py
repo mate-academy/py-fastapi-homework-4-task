@@ -5,12 +5,13 @@ from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from config import (
+from src.config import (
     get_jwt_auth_manager,
     get_settings,
-    BaseAppSettings, get_accounts_email_notificator
+    BaseAppSettings,
+    get_accounts_email_notificator
 )
-from database import (
+from src.database import (
     get_db,
     UserModel,
     UserGroupModel,
@@ -19,9 +20,9 @@ from database import (
     PasswordResetTokenModel,
     RefreshTokenModel
 )
-from exceptions import BaseSecurityError
-from notifications import EmailSenderInterface
-from schemas import (
+from src.exceptions import BaseSecurityError
+from src.notifications import EmailSenderInterface
+from src.schemas import (
     UserRegistrationRequestSchema,
     UserRegistrationResponseSchema,
     MessageResponseSchema,
@@ -33,7 +34,7 @@ from schemas import (
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema
 )
-from security.interfaces import JWTAuthManagerInterface
+from src.security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()
 
@@ -71,7 +72,7 @@ def register_user(
         user_data: UserRegistrationRequestSchema,
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
-        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -101,15 +102,16 @@ def register_user(
         activation_token = ActivationTokenModel(user_id=new_user.id)
         db.add(activation_token)
 
-        activation_link = "http://127.0.0.1:8000/accounts/activate"
+        db.commit()
+        db.refresh(new_user)
+
+        activation_link = f"http://127.0.0.1:8000/api/v1/accounts/activate/?token={activation_token.token}"
+
         background_tasks.add_task(
             email_notificator.send_activation_email,
             email=new_user.email,
             activation_link=activation_link,
         )
-
-        db.commit()
-        db.refresh(new_user)
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -152,7 +154,9 @@ def register_user(
 )
 def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -162,7 +166,7 @@ def activate_account(
     """
     token_record = db.query(ActivationTokenModel).join(UserModel).filter(
         UserModel.email == activation_data.email,
-        ActivationTokenModel.token == activation_data.token,
+        ActivationTokenModel.token == activation_data.token
     ).first()
 
     if (not token_record or
@@ -175,14 +179,6 @@ def activate_account(
             detail="Invalid or expired activation token."
         )
 
-    login_link = "http://127.0.0.1:8000/accounts/activate"
-
-    background_tasks.add_task(
-        email_notificator.send_activation_complete_email,
-        email=activation_data.email,
-        login_link=login_link
-    )
-
     user = token_record.user
     if user.is_active:
         raise HTTPException(
@@ -193,6 +189,14 @@ def activate_account(
     user.is_active = True
     db.delete(token_record)
     db.commit()
+
+    login_link = "http://127.0.0.1:8000/api/v1/accounts/login/"
+
+    background_tasks.add_task(
+        email_notificator.send_activation_complete_email,
+        email=user.email,
+        login_link=login_link,
+    )
 
     return MessageResponseSchema(message="User account activated successfully.")
 
@@ -211,7 +215,7 @@ def request_password_reset_token(
         data: PasswordResetRequestSchema,
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
-        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -232,10 +236,11 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    reset_link = "http://127.0.0.1:8000/accounts/activate"
+    reset_link = f"http://127.0.0.1:8000/api/v1/accounts/reset-password/complete?token={reset_token.token}"
+
     background_tasks.add_task(
         email_notificator.send_password_reset_email,
-        email=data.email,
+        email=user.email,
         reset_link=reset_link
     )
 
@@ -291,7 +296,7 @@ def reset_password(
         data: PasswordResetCompleteRequestSchema,
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
-        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -319,17 +324,18 @@ def reset_password(
             detail="Invalid email or token."
         )
 
-    login_link = "http://127.0.0.1:8000/accounts/activate"
-    background_tasks.add_task(
-        email_notificator.send_password_reset_complete_email,
-        email=data.email,
-        login_link=login_link
-    )
-
     try:
         user.password = data.password
         db.delete(token_record)
         db.commit()
+
+        login_link = "http://127.0.0.1:8000/api/v1/accounts/login/"
+
+        background_tasks.add_task(
+            email_notificator.send_password_reset_complete_email,
+            email=user.email,
+            login_link=login_link
+        )
     except SQLAlchemyError:
         db.rollback()
         raise HTTPException(

@@ -1,20 +1,21 @@
-from datetime import datetime, timezone
-from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException, Request
-from jose import ExpiredSignatureError
+from fastapi import APIRouter, HTTPException, status
+from fastapi.params import Depends
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from starlette import status
 
-from config import get_jwt_auth_manager, get_s3_storage_client
-from database import UserProfileModel, get_db, UserModel, UserGroupEnum
-from exceptions import TokenExpiredError
-from schemas.profiles import ProfileRequestForm, ProfileResponseSchema
-from security.http import get_token
-from security.token_manager import JWTAuthManager
-from storages import S3StorageInterface
-
-from src.exceptions.storage import BaseS3Error
+from src.config import get_jwt_auth_manager, get_s3_storage_client
+from src.database import UserProfileModel, get_db, UserModel
+from src.exceptions import TokenExpiredError
+from src.schemas.profiles import ProfileRequestForm, ProfileResponseSchema
+from src.security.http import get_token
+from src.security.token_manager import JWTAuthManager
+from src.storages import S3StorageInterface
+from src.validation import (
+    validate_name,
+    validate_image,
+    validate_gender,
+    validate_birth_date
+)
 
 router = APIRouter()
 
@@ -22,70 +23,102 @@ router = APIRouter()
 @router.post(
     "/users/{user_id}/profile/",
     response_model=ProfileResponseSchema,
-    status_code=status.HTTP_201_CREATED,
+    status_code=201
 )
 def profile(
-    request: Request,
-    user_id: int,
-    profile_form: ProfileRequestForm = Depends(ProfileRequestForm.as_form),
-    db: Session = Depends(get_db),
-    manager: JWTAuthManager = Depends(get_jwt_auth_manager),
-    storage: S3StorageInterface = Depends(get_s3_storage_client),
+        user_id: int,
+        db: Session = Depends(get_db),
+        token: str = Depends(get_token),
+        manager: JWTAuthManager = Depends(get_jwt_auth_manager),
+        storage: S3StorageInterface = Depends(get_s3_storage_client),
+        profile_form: ProfileRequestForm = Depends(
+            ProfileRequestForm.as_form
+        ),
 ):
-    token = get_token(request)
     try:
-        decoded_jwt = manager.decode_access_token(token)
+        access_token = manager.decode_access_token(token)
     except TokenExpiredError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="The provided token has expired. Please log in again.",
-        )
+        raise HTTPException(status_code=401, detail="Token has expired.")
 
-    user = db.query(UserModel).filter_by(id=user_id, is_active=True).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found or the account is inactive.",
-        )
-
-    if user.profile:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This user already has a profile associated with their account.",
-        )
-
-    request_user = db.query(UserModel).filter_by(id=decoded_jwt.get("user_id")).first()
-    if request_user != user and request_user.group.name != UserGroupEnum.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have the necessary permissions to edit this profile.",
-        )
-
-    file_name = f"avatars/{user.id}_avatar.jpg"
     try:
-        if profile_form and profile_form.avatar:
-            file_name = f"avatars/{user.id}_avatar.jpg"
-            file_data = profile_form.avatar.file.read()
-            storage.upload_file(file_name, file_data)
-    except BaseS3Error:
+        validate_name(profile_form.first_name)
+        validate_name(profile_form.last_name)
+        validate_birth_date(profile_form.date_of_birth)
+        validate_gender(profile_form.gender)
+
+        if not profile_form.info.strip():
+            raise ValueError(
+                "Info field cannot be empty or contain only spaces."
+            )
+
+        validate_image(profile_form.avatar)
+    except ValueError as error:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="There was an issue uploading the avatar. Please try again later.",
+            status_code=422, detail=str(error)
         )
 
-    profile = UserProfileModel(
-        first_name=profile_form.first_name.lower(),
-        last_name=profile_form.last_name.lower(),
-        gender=profile_form.gender,
-        date_of_birth=profile_form.date_of_birth,
-        info=profile_form.info,
-        user_id=user.id,
-        avatar=storage.get_file_url(file_name)
-    )
-    if "fake" in profile.avatar:
-        profile.avatar = file_name
-    db.add(profile)
-    db.commit()
-    db.refresh(profile)
+    user = db.query(UserModel).filter(
+        UserModel.id == access_token.get("user_id")
+    ).first()
 
-    return ProfileResponseSchema(**profile.__dict__)
+    if not user or user.is_active is False:
+        raise HTTPException(
+            status_code=401,
+            detail="User not found or not active."
+        )
+
+    if user_id != user.id and user.group.name != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to edit this profile."
+        )
+
+    profile_exist = db.query(UserProfileModel).filter(
+        UserProfileModel.user_id == user_id
+    ).first()
+
+    if profile_exist:
+        raise HTTPException(
+            status_code=400,
+            detail="User already has a profile."
+        )
+
+    try:
+        filename = f"avatars/{user_id}_avatar.jpg"
+        contents = profile_form.avatar.file.read()
+        storage.upload_file(filename, contents)
+    except Exception:
+        raise HTTPException(
+            status_code=500, detail="Failed to upload avatar. Please try again later."
+        )
+
+    try:
+        new_profile = UserProfileModel(
+            user_id=user_id,
+            first_name=profile_form.first_name.lower(),
+            last_name=profile_form.last_name.lower(),
+            gender=profile_form.gender,
+            date_of_birth=profile_form.date_of_birth,
+            info=profile_form.info,
+            avatar=filename,
+        )
+        db.add(new_profile)
+        db.commit()
+        db.refresh(new_profile)
+
+        return {
+            "id": new_profile.id,
+            "user_id": new_profile.user_id,
+            "first_name": new_profile.first_name,
+            "last_name": new_profile.last_name,
+            "gender": new_profile.gender,
+            "date_of_birth": new_profile.date_of_birth,
+            "info": new_profile.info,
+            "avatar": storage.get_file_url(filename),
+        }
+
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create profile. Please try again later."
+        )
