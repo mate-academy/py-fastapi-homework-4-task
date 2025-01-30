@@ -84,6 +84,7 @@ def profile(
         db.refresh(profile)
 
         return ProfileResponseSchema(
+            id=profile.id,
             user_id=user_id,
             first_name=profile_form.first_name.lower(),
             last_name=profile_form.last_name.lower(),
