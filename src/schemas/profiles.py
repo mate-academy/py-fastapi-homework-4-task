@@ -1,7 +1,10 @@
 from datetime import date
 
 from fastapi import UploadFile, Form, File
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+import validation
+from database.models.accounts import GenderEnum
 
 
 class ProfileRequestSchema(BaseModel):
@@ -20,7 +23,8 @@ class ProfileRequestSchema(BaseModel):
             gender: str = Form(),
             date_of_birth: date = Form(),
             info: str = Form(),
-            avatar: UploadFile = File()):
+            avatar: UploadFile = File()
+    ):
         return cls(
             first_name=first_name,
             last_name=last_name,
@@ -39,4 +43,4 @@ class ProfileResponseSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
-    avatar: UploadFile
+    avatar: str
