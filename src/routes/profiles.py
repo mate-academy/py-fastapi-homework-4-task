@@ -84,4 +84,11 @@ def profile(
     db.commit()
     db.refresh(profile)
 
-    return ProfileResponseSchema.model_validate(profile)
+    return ProfileResponseSchema(
+        first_name=profile.first_name,
+        last_name=profile.last_name,
+        gender=profile.gender,
+        date_of_birth=profile.date_of_birth,
+        info=profile.info,
+        avatar=storage.get_file_url(file_name)
+    )

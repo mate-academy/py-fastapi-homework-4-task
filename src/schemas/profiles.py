@@ -1,7 +1,7 @@
 import datetime
 from typing import Any, Optional
 
-from fastapi import File, Form, UploadFile
+from fastapi import File, Form, UploadFile, HTTPException, status
 from pydantic import BaseModel, field_validator
 
 from validation import validate_name, validate_gender, validate_birth_date, validate_image
@@ -34,56 +34,61 @@ class ProfileRequestForm(BaseModel):
             avatar=avatar,
         )
 
-    @field_validator("first_name")
-    @classmethod
-    def validate_first_name(cls, char):
-        validate_name(char)
-        return char
+    @staticmethod
+    def validate_field(value, validation_func):
+        if value:
+            try:
+                validation_func(value)
+            except ValueError as error:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=str(error)
+                )
+        return value
 
-    @field_validator("last_name")
+    @field_validator("first_name", "last_name")
     @classmethod
-    def validate_last_name(cls, char):
-        validate_name(char)
-        return char
+    def validate_name(cls, value: str) -> str:
+        return cls.validate_field(value, validate_name)
 
     @field_validator("gender")
     @classmethod
-    def validate_gender(cls, gender):
-        validate_gender(gender)
-        return gender
+    def validate_gender(cls, value: str) -> str:
+        return cls.validate_field(value, validate_gender)
 
     @field_validator("date_of_birth")
     @classmethod
-    def validate_birth_date(cls, birth):
-        validate_birth_date(birth)
-        return birth
+    def validate_birth_date(cls, value: datetime.date) -> datetime.date:
+        return cls.validate_field(value, validate_birth_date)
 
     @field_validator("info")
     @classmethod
-    def validate_info(cls, info):
-        if not info or not info.strip():
-            raise ValueError("Info field cannot be empty or contain only spaces.")
-        return info
+    def validate_info(cls, value: str) -> str:
+        if not value.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Info field cannot be empty or contain only spaces."
+            )
+        return value
 
     @field_validator("avatar")
     @classmethod
-    def validate_avatar(cls, file):
-        validate_image(file)
-        return file
+    def validate_image(cls, value: UploadFile) -> UploadFile:
+        return cls.validate_field(value, validate_image)
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }
 
 
-class ProfileResponseSchema(BaseModel):
-    id: int
-    user_id: int
-    first_name: Optional[str]
-    last_name: Optional[str]
-    gender: Optional[str]
-    date_of_birth: Optional[datetime.date]
-    info: Optional[str]
-    avatar: Optional[str]
+class ProfileResponseForm(BaseModel):
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: datetime.date
+    info: str
+    avatar: str
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }
