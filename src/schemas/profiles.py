@@ -27,12 +27,6 @@ class ProfileRequestForm(BaseModel):
         info: str = Form(...),
         avatar: UploadFile = File(...)
     ) -> Any:
-        """
-        Factory method to create ProfileRequestForm from form data.
-        This allows FastAPI to handle multipart/form-data requests.
-        Returns:
-            ProfileRequestForm instance with form data
-        """
         return cls(
             first_name=first_name,
             last_name=last_name,
@@ -44,10 +38,6 @@ class ProfileRequestForm(BaseModel):
 
 
 class ProfileResponseSchema(BaseModel):
-    """
-    Schema for profile response data.
-    Used to serialize profile information for API responses.
-    """
     id: int
     user_id: int
     first_name: str
