@@ -81,7 +81,7 @@ class ProfileRequestForm(BaseModel):
     }
 
 
-class ProfileResponseForm(BaseModel):
+class ProfileResponseSchema(BaseModel):
     first_name: str
     last_name: str
     gender: str

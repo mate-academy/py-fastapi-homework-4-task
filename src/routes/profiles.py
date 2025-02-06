@@ -8,12 +8,6 @@ from schemas.profiles import ProfileRequestForm, ProfileResponseSchema
 from security.http import get_token
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface
-from validation import (
-    validate_birth_date,
-    validate_gender,
-    validate_image,
-    validate_name,
-)
 
 router = APIRouter()
 
