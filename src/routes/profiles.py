@@ -84,13 +84,4 @@ def profile(
     db.commit()
     db.refresh(profile)
 
-    return ProfileResponseSchema(
-        id=profile.id,
-        user_id=user_id,
-        first_name=profile_form.first_name.lower(),
-        last_name=profile_form.last_name.lower(),
-        gender=profile_form.gender,
-        date_of_birth=profile_form.date_of_birth,
-        info=profile_form.info,
-        avatar=profile_form.avatar
-    )
+    return ProfileResponseSchema.model_validate(profile)
