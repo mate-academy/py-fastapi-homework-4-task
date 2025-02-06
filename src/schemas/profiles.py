@@ -4,6 +4,8 @@ from typing import Any, Optional
 from fastapi import File, Form, UploadFile
 from pydantic import BaseModel, field_validator
 
+from validation import validate_name, validate_gender, validate_birth_date, validate_image
+
 
 class ProfileRequestForm(BaseModel):
     first_name: Optional[str]
@@ -35,33 +37,22 @@ class ProfileRequestForm(BaseModel):
     @field_validator("first_name")
     @classmethod
     def validate_first_name(cls, char):
-        if not char or char.isdigit():
-            raise ValueError("First name must contain only alphabetic characters, spaces, or hyphens.")
-        return char
+        return validate_name(char)
 
     @field_validator("last_name")
     @classmethod
     def validate_last_name(cls, char):
-        if not char or char.isdigit():
-            raise ValueError("Last name must contain only alphabetic characters, spaces, or hyphens.")
-        return char
+        return validate_name(char)
 
     @field_validator("gender")
     @classmethod
     def validate_gender(cls, gender):
-        allowed_genders = {"male", "female", "other"}
-        if gender and gender.lower() not in allowed_genders:
-            raise ValueError(f"Gender must be one of {allowed_genders}.")
-        return gender
+        return validate_gender(gender)
 
     @field_validator("date_of_birth")
     @classmethod
     def validate_birth_date(cls, birth):
-        if birth and birth > datetime.date.today():
-            raise ValueError("Date of birth cannot be in the future.")
-        if birth and (datetime.date.today() - birth).days < 18 * 365:
-            raise ValueError("You must be at least 18 years old to register.")
-        return birth
+        return validate_birth_date(birth)
 
     @field_validator("info")
     @classmethod
@@ -73,12 +64,7 @@ class ProfileRequestForm(BaseModel):
     @field_validator("avatar")
     @classmethod
     def validate_avatar(cls, file):
-        if file:
-            allowed_extensions = {".jpg", ".jpeg", ".png"}
-            filename = file.filename.lower()
-            if not any(filename.endswith(ext) for ext in allowed_extensions):
-                raise ValueError("Avatar must be an image file (.jpg, .jpeg, .png).")
-        return file
+        return validate_image(file)
 
     class Config:
         from_attributes = True
