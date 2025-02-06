@@ -37,22 +37,26 @@ class ProfileRequestForm(BaseModel):
     @field_validator("first_name")
     @classmethod
     def validate_first_name(cls, char):
-        return validate_name(char)
+        validate_name(char)
+        return char
 
     @field_validator("last_name")
     @classmethod
     def validate_last_name(cls, char):
-        return validate_name(char)
+        validate_name(char)
+        return char
 
     @field_validator("gender")
     @classmethod
     def validate_gender(cls, gender):
-        return validate_gender(gender)
+        validate_gender(gender)
+        return gender
 
     @field_validator("date_of_birth")
     @classmethod
     def validate_birth_date(cls, birth):
-        return validate_birth_date(birth)
+        validate_birth_date(birth)
+        return birth
 
     @field_validator("info")
     @classmethod
@@ -64,7 +68,8 @@ class ProfileRequestForm(BaseModel):
     @field_validator("avatar")
     @classmethod
     def validate_avatar(cls, file):
-        return validate_image(file)
+        validate_image(file)
+        return file
 
     class Config:
         from_attributes = True
