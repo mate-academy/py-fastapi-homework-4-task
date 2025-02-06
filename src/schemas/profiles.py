@@ -2,7 +2,7 @@ import datetime
 from typing import Any, Optional
 
 from fastapi import File, Form, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ProfileRequestForm(BaseModel):
@@ -32,8 +32,53 @@ class ProfileRequestForm(BaseModel):
             avatar=avatar,
         )
 
+    @field_validator("first_name")
+    @classmethod
+    def validate_first_name(cls, char):
+        if not char or not char.isalpha():
+            raise ValueError("First name must contain only alphabetic characters.")
+        return char
+
+    @field_validator("last_name")
+    @classmethod
+    def validate_last_name(cls, char):
+        if not char or not char.isalpha():
+            raise ValueError("Last name must contain only alphabetic characters.")
+        return char
+
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, gender):
+        allowed_genders = {"male", "female", "other"}
+        if gender and gender.lower() not in allowed_genders:
+            raise ValueError(f"Gender must be one of {allowed_genders}.")
+        return gender
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_birth_date(cls, birth):
+        if birth and birth > datetime.date.today():
+            raise ValueError("Date of birth cannot be in the future.")
+        return birth
+
+    @field_validator("info")
+    @classmethod
+    def validate_info(cls, info):
+        if not info or not info.strip():
+            raise ValueError("Info field cannot be empty or contain only spaces.")
+        return info
+
+    @field_validator("avatar")
+    @classmethod
+    def validate_avatar(cls, file):
+        if file:
+            allowed_extensions = {".jpg", ".jpeg", ".png"}
+            filename = file.filename.lower()
+            if not any(filename.endswith(ext) for ext in allowed_extensions):
+                raise ValueError(f"Avatar must be an image file ({', '.join(allowed_extensions)}).")
+        return file
+
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -48,5 +93,4 @@ class ProfileResponseSchema(BaseModel):
     avatar: Optional[str]
 
     class Config:
-        orm_mode = True
         from_attributes = True

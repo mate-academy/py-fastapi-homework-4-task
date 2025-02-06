@@ -36,19 +36,6 @@ def profile(
     except TokenExpiredError:
         raise HTTPException(status_code=401, detail="Token has expired.")
 
-    try:
-        validate_name(profile_form.first_name)
-        validate_name(profile_form.last_name)
-        validate_gender(profile_form.gender)
-        validate_birth_date(profile_form.date_of_birth)
-        if not profile_form.info.strip():
-            raise ValueError(
-                "Info field cannot be empty or contain only spaces."
-            )
-        validate_image(profile_form.avatar)
-    except ValueError as err:
-        raise HTTPException(status_code=422, detail=str(err))
-
     token_user = (
         db.query(UserModel)
         .filter(UserModel.id == access_token.get("user_id"))
@@ -97,13 +84,4 @@ def profile(
     db.commit()
     db.refresh(profile)
 
-    return {
-        "id": profile.id,
-        "user_id": user.id,
-        "first_name": profile_form.first_name.lower(),
-        "last_name": profile_form.last_name.lower(),
-        "gender": profile_form.gender,
-        "date_of_birth": profile_form.date_of_birth,
-        "info": profile_form.info,
-        "avatar": storage.get_file_url(file_name),
-    }
+    return ProfileResponseSchema.model_validate(profile)
