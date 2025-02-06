@@ -35,15 +35,15 @@ class ProfileRequestForm(BaseModel):
     @field_validator("first_name")
     @classmethod
     def validate_first_name(cls, char):
-        if not char or not char.isalpha():
-            raise ValueError("First name must contain only alphabetic characters.")
+        if not char or char.isdigit():
+            raise ValueError("First name must contain only alphabetic characters, spaces, or hyphens.")
         return char
 
     @field_validator("last_name")
     @classmethod
     def validate_last_name(cls, char):
-        if not char or not char.isalpha():
-            raise ValueError("Last name must contain only alphabetic characters.")
+        if not char or char.isdigit():
+            raise ValueError("Last name must contain only alphabetic characters, spaces, or hyphens.")
         return char
 
     @field_validator("gender")
@@ -59,6 +59,8 @@ class ProfileRequestForm(BaseModel):
     def validate_birth_date(cls, birth):
         if birth and birth > datetime.date.today():
             raise ValueError("Date of birth cannot be in the future.")
+        if birth and (datetime.date.today() - birth).days < 18 * 365:
+            raise ValueError("You must be at least 18 years old to register.")
         return birth
 
     @field_validator("info")
@@ -75,7 +77,7 @@ class ProfileRequestForm(BaseModel):
             allowed_extensions = {".jpg", ".jpeg", ".png"}
             filename = file.filename.lower()
             if not any(filename.endswith(ext) for ext in allowed_extensions):
-                raise ValueError(f"Avatar must be an image file ({', '.join(allowed_extensions)}).")
+                raise ValueError("Avatar must be an image file (.jpg, .jpeg, .png).")
         return file
 
     class Config:
