@@ -39,7 +39,7 @@ def create_profile(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or not active.")
 
     user = db.query(UserModel).join(UserGroupModel).filter(UserModel.id == user_id).first()
-    if not user.is_active:
+    if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or not active.")
 
     profile = db.query(UserProfileModel).filter(UserProfileModel.id == user_id).first()
