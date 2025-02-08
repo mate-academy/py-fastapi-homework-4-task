@@ -88,5 +88,5 @@ def create_profile(
             detail="An error occurred during user creation."
         )
 
-    avatar = s3_client.get_file_url(file_name)
+    new_profile.avatar = s3_client.get_file_url(file_name)
     return ProfileResponseSchema.model_validate(new_profile)
