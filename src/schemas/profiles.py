@@ -9,7 +9,7 @@ from database.models.accounts import GenderEnum
 class ProfileRequestSchema(BaseModel):
     first_name: str
     last_name: str
-    gender: GenderEnum
+    gender: str
     date_of_birth: date
     info: str
     avatar: UploadFile
@@ -19,7 +19,7 @@ class ProfileRequestSchema(BaseModel):
         cls,
         first_name: str = Form(...),
         last_name: str = Form(...),
-        gender: GenderEnum = Form(...),
+        gender: str = Form(...),
         date_of_birth: date = Form(...),
         info: str = Form(...),
         avatar: UploadFile = File(...),
