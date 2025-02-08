@@ -78,7 +78,7 @@ def create_profile(
             gender=user_profile.gender,
             date_of_birth=user_profile.date_of_birth,
             info=user_profile.info,
-            avatar=s3_client.get_file_url(file_name),
+            avatar=file_name,
         )
         db.add(new_profile)
         db.commit()
@@ -88,4 +88,5 @@ def create_profile(
             detail="An error occurred during user creation."
         )
 
+    avatar = s3_client.get_file_url(file_name)
     return ProfileResponseSchema.model_validate(new_profile)
