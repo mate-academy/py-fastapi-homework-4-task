@@ -41,7 +41,7 @@ def create_profile(
         validate_gender(user_profile.gender)
         validate_birth_date(user_profile.date_of_birth)
         validate_image(user_profile.avatar)
-        if not user_profile.info or user_profile.info.strip():
+        if not user_profile.info or not user_profile.info.strip():
             raise ValueError("Info field empty.")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
