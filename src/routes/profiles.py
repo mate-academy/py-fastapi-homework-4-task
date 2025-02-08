@@ -8,7 +8,7 @@ from config import get_jwt_auth_manager, get_s3_storage_client
 from exceptions import BaseSecurityError, BaseS3Error
 from schemas.profiles import ProfileRequestSchema, ProfileResponseSchema
 from security.http import get_token
-from database import get_db, UserModel, UserGroupModel, UserProfileModel
+from database import get_db, UserModel, UserGroupModel, UserProfileModel, UserGroupEnum
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
 from validation import validate_name, validate_gender, validate_birth_date, validate_image
@@ -46,10 +46,10 @@ def create_profile(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
-    if not data_user_id or user_id != data_user_id:
+    user = db.query(UserModel).filter(UserModel.id == data_user_id).first()
+    if not data_user_id or (user_id != data_user_id and user.group.name != UserGroupEnum.ADMIN):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or not active.")
 
-    user = db.query(UserModel).join(UserGroupModel).filter(UserModel.id == user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or not active.")
 
