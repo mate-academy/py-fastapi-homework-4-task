@@ -14,7 +14,6 @@ class ProfileRequestSchema(BaseModel):
     info: str
     avatar: UploadFile
 
-
     @classmethod
     def from_form(
         cls,
