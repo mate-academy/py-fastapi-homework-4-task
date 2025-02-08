@@ -35,6 +35,15 @@ def create_profile(
             detail="Token has expired."
         )
 
+    try:
+        validate_name(user_profile.first_name)
+        validate_name(user_profile.last_name)
+        validate_gender(user_profile.gender)
+        validate_birth_date(user_profile.date_of_birth)
+        validate_image(user_profile.avatar)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
     if not data_user_id or user_id != data_user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or not active.")
 
@@ -45,15 +54,6 @@ def create_profile(
     profile = db.query(UserProfileModel).filter(UserProfileModel.id == user_id).first()
     if profile:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already has a profile.")
-
-    try:
-        validate_name(user_profile.first_name)
-        validate_name(user_profile.last_name)
-        validate_gender(user_profile.gender)
-        validate_birth_date(user_profile.date_of_birth)
-        validate_image(user_profile.avatar)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
     try:
         contents = user_profile.avatar.file.read()
