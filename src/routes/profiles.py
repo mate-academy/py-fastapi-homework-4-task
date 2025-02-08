@@ -48,7 +48,10 @@ def create_profile(
 
     user = db.query(UserModel).filter(UserModel.id == data_user_id).first()
     if not data_user_id or (user_id != data_user_id and user.group.name != UserGroupEnum.ADMIN):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have permission to edit this profile.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to edit this profile."
+        )
 
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or not active.")
