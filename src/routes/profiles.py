@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-# from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from config import get_jwt_auth_manager, get_s3_storage_client
