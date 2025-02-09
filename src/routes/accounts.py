@@ -1,14 +1,15 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from config import (
     get_jwt_auth_manager,
     get_settings,
-    BaseAppSettings
+    BaseAppSettings,
+    get_accounts_email_notificator,
 )
 from database import (
     get_db,
@@ -34,6 +35,7 @@ from schemas import (
     TokenRefreshResponseSchema
 )
 from security.interfaces import JWTAuthManagerInterface
+
 
 router = APIRouter()
 
@@ -69,7 +71,10 @@ router = APIRouter()
 )
 def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -107,6 +112,13 @@ def register_user(
             detail="An error occurred during user creation."
         )
     else:
+
+        background_tasks.add_task(
+            email_sender.send_activation_email,
+            str(new_user.email),
+            # activation_link
+            settings.ACTIVATION_LINK
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
@@ -143,7 +155,10 @@ def register_user(
 )
 def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -177,6 +192,12 @@ def activate_account(
     db.delete(token_record)
     db.commit()
 
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        email=str(activation_data.email),
+        login_link=settings.LOGIN_LINK
+    )
+
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -192,7 +213,10 @@ def activate_account(
 )
 def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: Session = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -212,6 +236,12 @@ def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     db.commit()
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        email=str(data.email),
+        reset_link=settings.RESET_PASSWORD_LINK
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -263,7 +293,10 @@ def request_password_reset_token(
 )
 def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: Session = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -301,6 +334,12 @@ def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
         )
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_complete_email,
+        email=str(data.email),
+        login_link=settings.LOGIN_LINK
+    )
 
     return MessageResponseSchema(message="Password reset successfully.")
 
