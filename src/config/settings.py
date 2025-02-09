@@ -47,11 +47,19 @@ class Settings(BaseAppSettings):
     SECRET_KEY_REFRESH: str = os.getenv("SECRET_KEY_REFRESH", os.urandom(32))
     JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
 
+    ACTIVATION_LINK: str = "http://127.0.0.1/accounts/activate/"
+    LOGIN_LINK: str = "http://127.0.0.1/accounts/login/"
+    RESET_PASSWORD_LINK: str = "http://127.0.0.1/accounts/reset-password/complete/"
+
 
 class TestingSettings(BaseAppSettings):
     SECRET_KEY_ACCESS: str = "SECRET_KEY_ACCESS"
     SECRET_KEY_REFRESH: str = "SECRET_KEY_REFRESH"
     JWT_SIGNING_ALGORITHM: str = "HS256"
+
+    ACTIVATION_LINK: str = "http://127.0.0.1/accounts/activate/"
+    LOGIN_LINK: str = "http://127.0.0.1/accounts/login/"
+    RESET_PASSWORD_LINK: str = "http://127.0.0.1/accounts/reset-password/complete/"
 
     def model_post_init(self, __context: dict[str, Any] | None = None) -> None:
         object.__setattr__(self, 'PATH_TO_DB', ":memory:")

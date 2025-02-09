@@ -36,6 +36,7 @@ from schemas import (
 )
 from security.interfaces import JWTAuthManagerInterface
 
+
 router = APIRouter()
 
 
@@ -73,6 +74,7 @@ def register_user(
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -110,12 +112,12 @@ def register_user(
             detail="An error occurred during user creation."
         )
     else:
-        activation_link = "http://127.0.0.1/accounts/activate/"
 
         background_tasks.add_task(
             email_sender.send_activation_email,
             str(new_user.email),
-            activation_link
+            # activation_link
+            settings.ACTIVATION_LINK
         )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
@@ -156,6 +158,7 @@ def activate_account(
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -189,12 +192,10 @@ def activate_account(
     db.delete(token_record)
     db.commit()
 
-    link = "http://127.0.0.1/accounts/login/"
-
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         email=str(activation_data.email),
-        login_link=link
+        login_link=settings.LOGIN_LINK
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -215,6 +216,7 @@ def request_password_reset_token(
         background_tasks: BackgroundTasks,
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: Session = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -235,12 +237,10 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    link = "http://127.0.0.1/accounts/reset-password/complete/"
-
     background_tasks.add_task(
         email_sender.send_password_reset_email,
         email=str(data.email),
-        reset_link=link
+        reset_link=settings.RESET_PASSWORD_LINK
     )
 
     return MessageResponseSchema(
@@ -296,6 +296,7 @@ def reset_password(
         background_tasks: BackgroundTasks,
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: Session = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -334,12 +335,10 @@ def reset_password(
             detail="An error occurred while resetting the password."
         )
 
-    link = "http://127.0.0.1/accounts/login/"
-
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
         email=str(data.email),
-        login_link=link
+        login_link=settings.LOGIN_LINK
     )
 
     return MessageResponseSchema(message="Password reset successfully.")
