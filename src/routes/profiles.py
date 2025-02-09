@@ -10,13 +10,6 @@ from schemas.profiles import ProfileRequestForm, ProfileResponseSchema
 from security.http import get_token
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface
-from validation import (
-    validate_name,
-    validate_image,
-    validate_gender,
-    validate_birth_date,
-)
-
 
 router = APIRouter()
 
@@ -37,22 +30,6 @@ def profile(
     except TokenExpiredError:
         raise HTTPException(status_code=401, detail="Token has expired.")
 
-    try:
-        validate_name(profile_form.first_name)
-        validate_name(profile_form.last_name)
-        validate_birth_date(profile_form.date_of_birth)
-        validate_gender(profile_form.gender)
-
-        if not profile_form.info.strip():
-            raise ValueError("Info field cannot be empty or contain only spaces.")
-
-        validate_image(profile_form.avatar)
-
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
-        )
-
     user = (
         db.query(UserModel)
         .filter(UserModel.id == decoded_access_token.get("user_id"))
@@ -70,7 +47,6 @@ def profile(
     profile_exist = (
         db.query(UserProfileModel).filter(UserProfileModel.user_id == user_id).first()
     )
-
     if profile_exist:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -99,20 +75,20 @@ def profile(
         db.add(new_profile)
         db.commit()
         db.refresh(new_profile)
-
-        return {
-            "id": new_profile.id,
-            "user_id": new_profile.user_id,
-            "first_name": new_profile.first_name,
-            "last_name": new_profile.last_name,
-            "gender": new_profile.gender,
-            "date_of_birth": new_profile.date_of_birth,
-            "info": new_profile.info,
-            "avatar": storage.get_file_url(filename),
-        }
-
     except SQLAlchemyError:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create profile. Please try again later.",
         )
+
+    return ProfileResponseSchema(
+        id=new_profile.id,
+        user_id=new_profile.user_id,
+        first_name=new_profile.first_name,
+        last_name=new_profile.last_name,
+        gender=new_profile.gender,
+        date_of_birth=new_profile.date_of_birth,
+        info=new_profile.info,
+        avatar=storage.get_file_url(filename),
+    )
