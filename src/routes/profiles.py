@@ -118,7 +118,6 @@ def create_profile(
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token.")
 
-
     existing_profile = db.query(UserProfileModel).filter(UserProfileModel.user_id == user_token_id).first()
     if existing_profile:
         raise HTTPException(status_code=400, detail="User already has a profile.")
