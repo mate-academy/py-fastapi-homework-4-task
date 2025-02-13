@@ -99,7 +99,7 @@ def create_profile(
         first_name: str = Form(...),
         last_name: str = Form(...),
         gender: str = Form(...),
-        date_of_birth: str = Form(...),
+        date_of_birth: date = Form(...),
         info: str = Form(...),
         avatar: UploadFile = File(None),
         token: str = Depends(get_token),
@@ -138,7 +138,6 @@ def create_profile(
     try:
         validate_name(first_name)
         validate_name(last_name)
-
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -148,8 +147,7 @@ def create_profile(
         raise HTTPException(status_code=422, detail=str(e))
 
     try:
-        birth_date_obj = date.fromisoformat(date_of_birth)
-        validate_birth_date(birth_date_obj)
+        validate_birth_date(date_of_birth)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -164,9 +162,12 @@ def create_profile(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    # Save avatar
+    # Validate & Save avatar
     if not avatar.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File is not an image")
+
+    if avatar.size > 1 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds 1MB limit")
 
     avatar_key = f"avatars/{user_id}_avatar.jpg"
 
@@ -185,7 +186,7 @@ def create_profile(
             first_name=first_name.lower(),
             last_name=last_name.lower(),
             gender=gender,
-            date_of_birth=birth_date_obj,
+            date_of_birth=date_of_birth,
             info=info,
             avatar=avatar_url,
         )
