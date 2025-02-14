@@ -75,8 +75,9 @@ def profile(
 
     try:
         file_name = f"avatars/{db_user.id}_avatar.jpg"
-        file_data = profile_form.avatar.file.read()
-        storage.upload_file(file_name, file_data)
+        with profile_form.avatar.file as file:
+            file_data = file.read()
+            storage.upload_file(file_name, file_data)
 
         profile = UserProfileModel(
             first_name=profile_form.first_name.lower(),
@@ -93,6 +94,7 @@ def profile(
         db.refresh(profile)
 
     except (SQLAlchemyError, S3FileUploadError):
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload avatar. Please try again later."

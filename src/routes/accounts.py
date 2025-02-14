@@ -9,7 +9,8 @@ from config import (
     get_jwt_auth_manager,
     get_settings,
     BaseAppSettings,
-    get_accounts_email_notificator
+    get_accounts_email_notificator,
+    settings
 )
 from database import (
     get_db,
@@ -110,7 +111,7 @@ def register_user(
             detail="An error occurred during user creation."
         )
     else:
-        activation_link = "http://127.0.0.1/accounts/activate/"
+        activation_link = f"{settings.BASE_URL}/accounts/activate/"
         background_tasks.add_task(
             email_sender.send_activation_email,
             str(new_user.email),
@@ -188,7 +189,7 @@ def activate_account(
     db.delete(token_record)
     db.commit()
 
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = f"{settings.BASE_URL}/accounts/login/"
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         str(activation_data.email),
@@ -233,7 +234,7 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    reset_link = "http://127.0.0.1/accounts/reset-password/complete/"
+    reset_link = f"{settings.BASE_URL}/accounts/reset-password/complete/"
     background_tasks.add_task(
         email_sender.send_password_reset_email,
         str(data.email),
@@ -331,7 +332,7 @@ def reset_password(
             detail="An error occurred while resetting the password."
         )
 
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = f"{settings.BASE_URL}/accounts/login/"
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
         str(data.email),
