@@ -21,6 +21,7 @@ class ProfileResponseSchema(BaseModel):
     info: str
     avatar: str
 
+
 class ProfileRequestSchema(BaseModel):
     first_name: Optional[str]
     last_name: Optional[str]
@@ -37,7 +38,6 @@ class ProfileRequestSchema(BaseModel):
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         return value
-
 
     @field_validator("gender")
     @classmethod
