@@ -55,7 +55,6 @@ class ProfileRequestSchema(BaseModel):
             validate_birth_date(value)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
-        print(value)
         return value
 
     @field_validator("avatar")
