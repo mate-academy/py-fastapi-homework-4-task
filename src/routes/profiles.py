@@ -88,11 +88,11 @@ async def create_profile(
             file_name = f"avatars/{user_id}_avatar.jpg"
             file_data = await data.avatar.read()
             s3_client.upload_file(file_name, file_data)
-            avatar_url = s3_client.get_file_url(file_name)
 
         except Exception:
             raise HTTPException(status_code=500, detail="Failed to upload avatar. Please try again later.")
-
+    else:
+        file_name = None
     first_name = data.first_name
     last_name = data.last_name
     gender = data.gender
@@ -104,7 +104,7 @@ async def create_profile(
         gender=gender.lower() if gender else gender,
         date_of_birth=data.date_of_birth,
         info=data.info,
-        avatar=avatar_url
+        avatar=file_name
     )
 
     db.add(profile)
