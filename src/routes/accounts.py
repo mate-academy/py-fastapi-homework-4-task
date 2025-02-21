@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from config import (
     get_jwt_auth_manager,
     get_settings,
-    BaseAppSettings
+    BaseAppSettings, get_accounts_email_notificator
 )
 from database import (
     get_db,
@@ -36,7 +36,7 @@ from schemas import (
 from security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()
-
+BASE_LINK = "http://127.0.0.1/accounts/"
 
 @router.post(
     "/register/",
@@ -69,6 +69,8 @@ router = APIRouter()
 )
 def register_user(
         user_data: UserRegistrationRequestSchema,
+        bg_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: Session = Depends(get_db),
 ) -> UserRegistrationResponseSchema:
     """
@@ -107,6 +109,11 @@ def register_user(
             detail="An error occurred during user creation."
         )
     else:
+        bg_tasks.add_task(
+            email_sender.send_activation_email,
+            email=new_user.email,
+            activation_link=f"{BASE_LINK}activate/"
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 

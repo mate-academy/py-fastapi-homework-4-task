@@ -1,5 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
-
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from database import accounts_validators
 
 
