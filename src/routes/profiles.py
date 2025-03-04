@@ -163,8 +163,8 @@ async def create_profile(
         new_profile = UserProfileModel(
             user_id=user_id,
             first_name=first_name.lower() if first_name else None,
-            last_name=last_name.lower(),
-            gender=gender.upper(),
+            last_name=last_name.lower() if last_name else None,
+            gender=gender.upper() if gender else None,
             date_of_birth=date_of_birth,
             info=info,
             avatar=avatar_url or None,
@@ -185,8 +185,6 @@ async def create_profile(
         db.rollback()
         raise HTTPException(status_code=422, detail="Invalid input data.")
 
-    except UnicodeDecodeError as err:
-        raise HTTPException(status_code=500, detail=str(err))
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -65,10 +65,11 @@ router = APIRouter()
     },
 )
 def register_user(
-    user_data: UserRegistrationRequestSchema,
-    background_tasks: BackgroundTasks,
-    email_sender: EmailSender = Depends(get_accounts_email_notificator),
-    db: Session = Depends(get_db),
+        user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSender = Depends(get_accounts_email_notificator),
+        db: Session = Depends(get_db),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -101,7 +102,7 @@ def register_user(
         db.commit()
         db.refresh(new_user)
 
-        activation_link = f"http://127.0.0.1:8000/accounts/activate"
+        activation_link = f"{settings.BASE_ACCOUNT_LINK}/activate"
 
         background_tasks.add_task(
             email_sender.send_activation_email, str(new_user.email), activation_link
@@ -125,7 +126,7 @@ def register_user(
     responses={
         400: {
             "description": "Bad Request - The activation token is invalid or expired, "
-            "or the user account is already active.",
+                           "or the user account is already active.",
             "content": {
                 "application/json": {
                     "examples": {
@@ -144,10 +145,11 @@ def register_user(
     },
 )
 def activate_account(
-    activation_data: UserActivationRequestSchema,
-    background_tasks: BackgroundTasks,
-    email_sender: EmailSender = Depends(get_accounts_email_notificator),
-    db: Session = Depends(get_db),
+        activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSender = Depends(get_accounts_email_notificator),
+        db: Session = Depends(get_db),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -166,7 +168,7 @@ def activate_account(
     )
 
     if not token_record or cast(datetime, token_record.expires_at).replace(
-        tzinfo=timezone.utc
+            tzinfo=timezone.utc
     ) < datetime.now(timezone.utc):
         if token_record:
             db.delete(token_record)
@@ -187,7 +189,7 @@ def activate_account(
     db.delete(token_record)
     db.commit()
 
-    activation_link = f"http://127.0.0.1:8000/accounts/activate"
+    activation_link = f"{settings.BASE_ACCOUNT_LINK}/activate"
 
     background_tasks.add_task(
         email_sender.send_activation_complete_email, str(user.email), activation_link
@@ -201,16 +203,17 @@ def activate_account(
     response_model=MessageResponseSchema,
     summary="Request Password Reset Token",
     description=(
-        "Allows a user to request a password reset token. If the user exists and is active, "
-        "a new token will be generated and any existing tokens will be invalidated."
+            "Allows a user to request a password reset token. If the user exists and is active, "
+            "a new token will be generated and any existing tokens will be invalidated."
     ),
     status_code=status.HTTP_200_OK,
 )
 def request_password_reset_token(
-    data: PasswordResetRequestSchema,
-    background_tasks: BackgroundTasks,
-    email_sender: EmailSender = Depends(get_accounts_email_notificator),
-    db: Session = Depends(get_db),
+        data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSender = Depends(get_accounts_email_notificator),
+        db: Session = Depends(get_db),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -231,7 +234,7 @@ def request_password_reset_token(
     db.add(reset_token)
     db.commit()
 
-    reset_password_link = "http://127.0.0.1:8000/accounts/reset-password/complete"
+    reset_password_link = f"{settings.BASE_ACCOUNT_LINK}/reset-password/complete"
 
     background_tasks.add_task(
         email_sender.send_password_reset_email, str(user.email), reset_password_link
@@ -251,7 +254,7 @@ def request_password_reset_token(
     responses={
         400: {
             "description": "Bad Request - The provided email or token is invalid, "
-            "the token has expired, or the user account is not active.",
+                           "the token has expired, or the user account is not active.",
             "content": {
                 "application/json": {
                     "examples": {
@@ -280,10 +283,10 @@ def request_password_reset_token(
     },
 )
 def reset_password(
-    data: PasswordResetCompleteRequestSchema,
-    background_tasks: BackgroundTasks,
-    email_sender: EmailSender = Depends(get_accounts_email_notificator),
-    db: Session = Depends(get_db),
+        data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSender = Depends(get_accounts_email_notificator),
+        db: Session = Depends(get_db),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -305,9 +308,9 @@ def reset_password(
                                                    )
 
     if (
-        not token_record
-        or token_record.token != data.token
-        or expires_at < datetime.now(timezone.utc)
+            not token_record
+            or token_record.token != data.token
+            or expires_at < datetime.now(timezone.utc)
     ):
         if token_record:
             db.delete(token_record)
@@ -375,10 +378,10 @@ def reset_password(
     },
 )
 def login_user(
-    login_data: UserLoginRequestSchema,
-    db: Session = Depends(get_db),
-    settings: BaseAppSettings = Depends(get_settings),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+        login_data: UserLoginRequestSchema,
+        db: Session = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
+        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> UserLoginResponseSchema:
     """
     Endpoint for user login.
@@ -464,9 +467,9 @@ def login_user(
     },
 )
 def refresh_access_token(
-    token_data: TokenRefreshRequestSchema,
-    db: Session = Depends(get_db),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+        token_data: TokenRefreshRequestSchema,
+        db: Session = Depends(get_db),
+        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> TokenRefreshResponseSchema:
     """
     Endpoint to refresh an access token.

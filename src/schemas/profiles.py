@@ -38,7 +38,7 @@ class BaseProfileSchema(BaseModel):
 
     @field_validator("date_of_birth")
     @classmethod
-    def validate_date(cls, value: date) -> str:
+    def validate_date(cls, value: date) -> date:
         return validate_birth_date(value)
 
 

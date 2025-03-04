@@ -18,6 +18,8 @@ class BaseAppSettings(BaseSettings):
 
     LOGIN_TIME_DAYS: int = 7
 
+    BASE_ACCOUNT_LINK: str = os.getenv("BASE_ACCOUNT_LINK", "http://127.0.0.1:8000/accounts")
+
     EMAIL_HOST: str = os.getenv("EMAIL_HOST", "host")
     EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", 25))
     EMAIL_HOST_USER: str = os.getenv("EMAIL_HOST_USER", "testuser")
