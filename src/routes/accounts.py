@@ -2,15 +2,11 @@ from datetime import datetime, timezone
 from typing import cast
 
 from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
+from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from config import (
-    get_jwt_auth_manager,
-    get_accounts_email_notificator,
-    get_settings,
-    BaseAppSettings,
-)
+from config import get_jwt_auth_manager, get_settings, BaseAppSettings, get_accounts_email_notificator
 from database import (
     get_db,
     UserModel,
