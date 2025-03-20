@@ -110,4 +110,4 @@ async def create_profile(
         date_of_birth=new_profile.date_of_birth,
         info=new_profile.info,
         avatar=cast(HttpUrl, avatar_url)
-    )
+    ) # BUDDY ITS NOT EMPTY
