@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import cast
-
+from fastapi import Request
 from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
@@ -38,6 +38,7 @@ router = APIRouter()
 
 @router.post(
     "/register/",
+    name="activate",
     response_model=UserRegistrationResponseSchema,
     summary="User Registration",
     description="Register a new user with an email and password.",
@@ -66,6 +67,7 @@ router = APIRouter()
     }
 )
 async def register_user(
+        request: Request,
         user_data: UserRegistrationRequestSchema,
         background_tasks: BackgroundTasks,
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -122,7 +124,7 @@ async def register_user(
 
         await db.commit()
         await db.refresh(new_user)
-        login_link = "http://127.0.0.1/accounts/activate"
+        login_link = str(request.url_for("activate"))
 
         background_tasks.add_task(
             email_sender.send_activation_email,
@@ -141,6 +143,7 @@ async def register_user(
 
 @router.post(
     "/activate/",
+    name="activate_account",
     response_model=MessageResponseSchema,
     summary="Activate User Account",
     description="Activate a user's account using their email and activation token.",
@@ -171,6 +174,7 @@ async def register_user(
     },
 )
 async def activate_account(
+        request: Request,
         activation_data: UserActivationRequestSchema,
         background_tasks: BackgroundTasks,
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -229,7 +233,7 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = str(request.url_for("activate_account"))
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         str(activation_data.email),
@@ -250,6 +254,7 @@ async def activate_account(
     status_code=status.HTTP_200_OK,
 )
 async def request_password_reset_token(
+        request: Request,
         data: PasswordResetRequestSchema,
         background_tasks: BackgroundTasks,
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -283,7 +288,7 @@ async def request_password_reset_token(
     db.add(reset_token)
     await db.commit()
 
-    reset_link = "http://127.0.0.1/accounts/reset-password/complete/"
+    reset_link = str(request.url_for("request_password_reset_token"))
     background_tasks.add_task(
         email_sender.send_password_reset_email,
         str(data.email),
@@ -297,6 +302,7 @@ async def request_password_reset_token(
 
 @router.post(
     "/reset-password/complete/",
+    name="reset_password",
     response_model=MessageResponseSchema,
     summary="Reset User Password",
     description="Reset a user's password if a valid token is provided.",
@@ -339,6 +345,7 @@ async def request_password_reset_token(
     },
 )
 async def reset_password(
+        request: Request,
         data: PasswordResetCompleteRequestSchema,
         background_tasks: BackgroundTasks,
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
@@ -399,7 +406,7 @@ async def reset_password(
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
 
-        login_link = "http://127.0.0.1/accounts/login/"
+        login_link = str(request.url_for("reset_password"))
         background_tasks.add_task(
             email_sender.send_password_reset_complete_email,
             str(data.email),
