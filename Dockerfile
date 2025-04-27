@@ -40,6 +40,8 @@ WORKDIR /usr/src/fastapi
 # Copy the source code
 COPY ./src .
 
+ENV PYTHONPATH="/usr/src/fastapi:${PYTHONPATH}"
+
 # Copy commands
 COPY ./commands /commands
 

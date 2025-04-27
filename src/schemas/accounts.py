@@ -7,9 +7,7 @@ class BaseEmailPasswordSchema(BaseModel):
     email: EmailStr
     password: str
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
     @field_validator("email")
     @classmethod
@@ -48,9 +46,7 @@ class UserRegistrationResponseSchema(BaseModel):
     id: int
     email: EmailStr
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
 
 class UserActivationRequestSchema(BaseModel):
@@ -69,3 +65,15 @@ class TokenRefreshRequestSchema(BaseModel):
 class TokenRefreshResponseSchema(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class PasswordResetSchema(BaseEmailPasswordSchema):
+    pass
+
+
+class TokenRefreshSchema(TokenRefreshRequestSchema):
+    pass
+
+
+class ActivationTokenSchema(UserActivationRequestSchema):
+    pass
