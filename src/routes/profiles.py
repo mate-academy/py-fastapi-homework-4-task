@@ -1,17 +1,11 @@
-from http.client import HTTPResponse
-
-from fastapi import APIRouter, Depends, Request, HTTPException, UploadFile, Form
-from pyasn1.codec.ber.decoder import stStop
+from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from starlette.responses import Response
 
 from config import get_jwt_auth_manager, get_s3_storage_client
 from database import get_db, UserModel, UserProfileModel, UserGroupModel, UserGroupEnum
 from exceptions import TokenExpiredError, S3ConnectionError, S3FileUploadError
-from schemas import UserRegistrationRequestSchema, UserRegistrationResponseSchema
 
 from schemas.profiles import (
     UserProfileCreateRequestSchema,
@@ -61,7 +55,7 @@ async def create_profile(
         raise HTTPException(status_code=401, detail="User not found or not active.")
 
     stmt = await db.execute(
-        select(UserProfileModel).where(UserProfileModel.id == user_id)
+        select(UserProfileModel).where(UserProfileModel.user_id == user_id)
     )
     user_profile_record = stmt.scalars().first()
     if user_profile_record:
