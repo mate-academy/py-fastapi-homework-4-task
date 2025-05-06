@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +16,7 @@ from schemas.profiles import (
 from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
+from validation import validate_image
 
 router = APIRouter()
 
@@ -24,12 +27,12 @@ router = APIRouter()
     status_code=201,
 )
 async def create_profile(
-    user_id: int,
-    token: str = Depends(get_token),
-    user_data: UserProfileCreateRequestSchema = Form(),
-    db: AsyncSession = Depends(get_db),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-    s3_client: S3StorageInterface = Depends(get_s3_storage_client),
+        user_id: int,
+        user_data: Annotated[UserProfileCreateRequestSchema, Form()],
+        token: str = Depends(get_token),
+        db: AsyncSession = Depends(get_db),
+        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+        s3_client: S3StorageInterface = Depends(get_s3_storage_client),
 ):
     try:
         decoded_token = jwt_manager.decode_access_token(token)
