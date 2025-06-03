@@ -88,6 +88,8 @@ async def register_user(
     Args:
         user_data (UserRegistrationRequestSchema): The registration details including email and password.
         db (AsyncSession): The asynchronous database session.
+        background_tasks (BackgroundTasks): Create background tasks for this endpoint.
+        email_sender (EmailSenderInterface): Create logic for email sending.
 
     Returns:
         UserRegistrationResponseSchema: The newly created user's details.
@@ -132,9 +134,13 @@ async def register_user(
         await db.commit()
         await db.refresh(new_user)
 
-        activation_link = "http://127.0.0.1:8000/api/v1/accounts/activate/"
+        activation_link = (
+            f"http://127.0.0.1/accounts/activate/{activation_token.token}/"
+        )
         background_tasks.add_task(
-            email_sender.send_activation_email, new_user.email, activation_link
+            email_sender.send_activation_email,
+            str(new_user.email),
+            activation_link,
         )
 
     except SQLAlchemyError as e:
@@ -181,10 +187,10 @@ async def register_user(
 async def activate_account(
     activation_data: UserActivationRequestSchema,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
     email_sender: EmailSenderInterface = Depends(
         get_accounts_email_notificator
     ),
+    db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -197,6 +203,8 @@ async def activate_account(
     Args:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
         db (AsyncSession): The asynchronous database session.
+        background_tasks (BackgroundTasks): Create background tasks for this endpoint.
+        email_sender (EmailSenderInterface): Create logic for email sending.
 
     Returns:
         MessageResponseSchema: A response message confirming successful activation.
@@ -243,7 +251,7 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
-    login_link = "http://127.0.0.1:8000/api/v1/accounts/login/"
+    login_link = "http://127.0.0.1/accounts/login/"
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         str(activation_data.email),
@@ -268,10 +276,10 @@ async def activate_account(
 async def request_password_reset_token(
     data: PasswordResetRequestSchema,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
     email_sender: EmailSenderInterface = Depends(
         get_accounts_email_notificator
     ),
+    db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -282,6 +290,8 @@ async def request_password_reset_token(
     Args:
         data (PasswordResetRequestSchema): The request data containing the user's email.
         db (AsyncSession): The asynchronous database session.
+        background_tasks (BackgroundTasks): Create background tasks for this endpoint.
+        email_sender (EmailSenderInterface): Create logic for email sending.
 
     Returns:
         MessageResponseSchema: A success message indicating that instructions will be sent.
@@ -305,13 +315,11 @@ async def request_password_reset_token(
     db.add(reset_token)
     await db.commit()
 
-    password_reset_link = (
-        "http://127.0.0.1:8000/api/v1/" "accounts/reset-password/complete"
-    )
+    reset_link = f"http://127.0.0.1/accounts/password-reset/confirm/{reset_token.token}/"
     background_tasks.add_task(
         email_sender.send_password_reset_email,
         str(data.email),
-        password_reset_link,
+        reset_link,
     )
 
     return MessageResponseSchema(
@@ -361,10 +369,10 @@ async def request_password_reset_token(
 async def reset_password(
     data: PasswordResetCompleteRequestSchema,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
     email_sender: EmailSenderInterface = Depends(
         get_accounts_email_notificator
     ),
+    db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -376,6 +384,8 @@ async def reset_password(
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
         db (AsyncSession): The asynchronous database session.
+        background_tasks (BackgroundTasks): Create background tasks for this endpoint.
+        email_sender (EmailSenderInterface): Create logic for email sending.
 
     Returns:
         MessageResponseSchema: A response message indicating successful password reset.
@@ -420,17 +430,16 @@ async def reset_password(
 
     try:
         user.password = data.password
-        await db.run_sync(lambda s: s.delete(token_record))
+        await db.delete(token_record)
         await db.commit()
-        reset_password_complete_link = (
-            "http://127.0.0.1:8000/api/v1/" "accounts/login"
-        )
-        email_user = data.email
+
+        login_link = "http://127.0.0.1/accounts/login/"
         background_tasks.add_task(
             email_sender.send_password_reset_complete_email,
-            str(data.email),
-            reset_password_complete_link,
+            str(user.email),
+            login_link,
         )
+
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
