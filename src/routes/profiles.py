@@ -11,6 +11,7 @@ from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
 router = APIRouter()
 
+
 @router.post(
     "/users/{user_id}/profile/",
     response_model=ProfileResponseSchema,
@@ -45,7 +46,9 @@ async def create_profile(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e)
         )
-    stmt_user = await db.execute(select(UserModel).where(UserModel.id == user_id).options(joinedload(UserModel.profile)))
+    stmt_user = await db.execute(select(UserModel)
+                                 .where(UserModel.id == user_id)
+                                 .options(joinedload(UserModel.profile)))
     user = stmt_user.scalars().first()
     if not user or not user.is_active:
         raise HTTPException(
@@ -102,4 +105,3 @@ async def create_profile(
         info=new_profile.info,
         avatar=avatar_url
     )
-

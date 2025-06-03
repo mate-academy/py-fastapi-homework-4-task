@@ -8,6 +8,7 @@ from validation import (
     validate_birth_date
 )
 
+
 class BaseProfileSchema(BaseModel):
     first_name: str
     last_name: str
