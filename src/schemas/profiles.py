@@ -45,14 +45,13 @@ class BaseProfileSchema(BaseModel):
 
     @field_validator("info")
     @classmethod
-    def validate_info_field(cls, info: str, info_field) -> str:
-        cleaned_info = info.strip()
-        if not cleaned_info:
+    def validate_info_field(cls, value: str) -> str:
+        if not len(value.strip()) > 0:
             raise HTTPException(
                 status_code=422,
                 detail="Info field cannot be empty or contain only spaces.",
             )
-        return cleaned_info
+        return value.strip()
 
 
 class ProfileCreateRequestSchema(BaseProfileSchema):
