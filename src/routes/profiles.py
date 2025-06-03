@@ -98,8 +98,11 @@ async def create_profile(
             )
     except SQLAlchemyError:
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "User already has a profile.",
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            (
+                "Failed to create new profile in database. "
+                "Please try again later."
+            ),
         )
 
     try:
