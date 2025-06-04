@@ -17,7 +17,6 @@ class ProfileCreateSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
-    avatar: UploadFile
 
     @classmethod
     def from_request(
@@ -26,17 +25,14 @@ class ProfileCreateSchema(BaseModel):
             last_name: str = Form(...),
             gender: str = Form(...),
             date_of_birth: date = Form(...),
-            info: str = Form(...),
-            avatar: UploadFile = File(...)
+            info: str = Form(...)
     ) -> "ProfileCreateSchema":
-
         return cls(
             first_name=first_name,
             last_name=last_name,
             gender=gender,
             date_of_birth=date_of_birth,
             info=info,
-            avatar=avatar
         )
 
     @field_validator("first_name", "last_name")

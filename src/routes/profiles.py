@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header, Depends, HTTPException
+from fastapi import APIRouter, Header, Depends, HTTPException, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -25,7 +25,8 @@ async def create_profile(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     db: AsyncSession = Depends(get_db),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
-    profile_data: ProfileCreateSchema = Depends(ProfileCreateSchema.from_request)
+    profile_data: ProfileCreateSchema = Depends(ProfileCreateSchema.from_request),
+    avatar: UploadFile = File(...)
 ) -> ProfileResponseSchema:
     """
     Create a new user profile.
@@ -76,8 +77,8 @@ async def create_profile(
             detail="User already has a profile."
         )
 
-    avatar_data = await profile_data.avatar.read()
-    avatar_key = f"avatars/{user_id}_{profile_data.avatar.filename}"
+    avatar_data = await avatar.read()
+    avatar_key = f"avatars/{user_id}_{avatar.filename}"
 
     try:
         await s3_client.upload_file(file_name=avatar_key, file_data=avatar_data)
