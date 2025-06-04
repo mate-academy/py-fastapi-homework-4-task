@@ -37,6 +37,13 @@ from schemas import (
     TokenRefreshResponseSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
+from passlib.context import CryptContext
+
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
 
 router = APIRouter()
 
@@ -416,7 +423,8 @@ async def reset_password(
         )
 
     try:
-        user.password = data.password
+        hashed_password = get_password_hash(data.password)
+        user.password = hashed_password
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
 
