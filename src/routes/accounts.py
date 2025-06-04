@@ -394,12 +394,10 @@ async def reset_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid email or token."
         )
-
     try:
         user.password = data.password
         await db.delete(token_record)
         await db.commit()
-
 
         login_link = "http://127.0.0.1/accounts/login/"
         background_tasks.add_task(
