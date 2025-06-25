@@ -8,18 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from security import get_token, decode_access_token
 
 from database import get_db
-from schemas import ProfileResponseSchema
+from schemas import ProfileResponseSchema, ProfileRequestSchema
 
 
 from config.dependencies import get_s3_storage_client
 from database.models.accounts import UserModel, UserGroupModel, UserProfileModel
 from storages.interfaces import S3StorageInterface
 
+
 router = APIRouter()
 
 # Write your code here
 @router.post("/users/{user_id}/profile/", response_model=ProfileResponseSchema, status_code=201)
-async def profile_create(user_id: int, user_data: ProfileResponseSchema, avatar: UploadFile = File(...), s3_client: S3StorageInterface = Depends(get_s3_storage_client), db: AsyncSession = Depends(get_db), token: str = Depends(get_token)):
+async def profile_create(user_id: int, user_data: ProfileRequestSchema, avatar: UploadFile = File(...), s3_client: S3StorageInterface = Depends(get_s3_storage_client), db: AsyncSession = Depends(get_db), token: str = Depends(get_token)):
     if not token:
         raise HTTPException(status_code=401, detail="Authorization header is missing")
 
@@ -27,7 +28,7 @@ async def profile_create(user_id: int, user_data: ProfileResponseSchema, avatar:
     if not decode_access:
         raise HTTPException(status_code=404, detail="Invalid Token")
 
-    if decode_access["exp"] > datetime.now(timezone.utc):
+    if decode_access["exp"] < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Token has expired.")
 
     result_user = await db.execute(select(UserModel).where(UserModel.id == user_id))
@@ -48,7 +49,7 @@ async def profile_create(user_id: int, user_data: ProfileResponseSchema, avatar:
     if user_profile:
         raise HTTPException(status_code=400, detail="User already has a profile.")
 
-    filename = f"http://minio-theater/avatars/{user.id}_avatar.jpg"
+    filename = f"avatars/{user.id}_avatar.jpg"
     try:
         file_data = await avatar.read()
         await s3_client.upload_file(file_name=filename, file_data=file_data)

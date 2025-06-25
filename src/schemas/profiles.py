@@ -11,7 +11,7 @@ from validation import (
 )
 
 # Write your code here
-class ProfileResponseSchema(BaseModel):
+class ProfileRequestSchema(BaseModel):
     first_name: str
     last_name: str
     gender: str
@@ -39,7 +39,7 @@ class ProfileResponseSchema(BaseModel):
         return value
 
     @classmethod
-    @field_validator("birth_date")
+    @field_validator("date_of_birth")
     def check_birth_date(cls, value):
         validate_birth_date(value)
         return value
@@ -48,10 +48,8 @@ class ProfileResponseSchema(BaseModel):
     @field_validator("info")
     def check_info(cls, value):
 
-        if not len(value) <= 0:
-            contain = [i for i in value if i != " "]
-            if len(contain) > 0:
-                return value
+        if len(value) > 0 and len([i for i in value if i != " "]) > 0:
+            return value
         raise HTTPException(status_code=400, detail="Invalid info")
 
     @classmethod
@@ -59,3 +57,7 @@ class ProfileResponseSchema(BaseModel):
     def check_avatar(cls, value):
         validate_image(value)
         return value
+
+
+class ProfileResponseSchema(ProfileRequestSchema):
+    id: int
