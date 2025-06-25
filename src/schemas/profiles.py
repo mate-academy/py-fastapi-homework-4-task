@@ -17,7 +17,6 @@ class ProfileRequestSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
-    avatar: HttpUrl
 
 
     @classmethod
@@ -52,12 +51,8 @@ class ProfileRequestSchema(BaseModel):
             return value
         raise HTTPException(status_code=400, detail="Invalid info")
 
-    @classmethod
-    @field_validator("avatar")
-    def check_avatar(cls, value):
-        validate_image(value)
-        return value
-
 
 class ProfileResponseSchema(ProfileRequestSchema):
     id: int
+    avatar: HttpUrl
+

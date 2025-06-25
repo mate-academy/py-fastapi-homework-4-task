@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from security import get_token, decode_access_token
+from validation import validate_image
 
 from database import get_db
 from schemas import ProfileResponseSchema, ProfileRequestSchema
@@ -31,6 +32,8 @@ async def profile_create(user_id: int, user_data: ProfileRequestSchema, avatar: 
     if decode_access["exp"] < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Token has expired.")
 
+    validate_image(avatar)
+
     result_user = await db.execute(select(UserModel).where(UserModel.id == user_id))
     user = await result_user.scalar_one_or_none()
     result_group = await db.execute(select(UserGroupModel).filter(UserGroupModel.name == "ADMIN"))
@@ -49,8 +52,11 @@ async def profile_create(user_id: int, user_data: ProfileRequestSchema, avatar: 
     if user_profile:
         raise HTTPException(status_code=400, detail="User already has a profile.")
 
-    filename = f"avatars/{user.id}_avatar.jpg"
+    end_of_filename = avatar.filename
+
+    filename = f"avatars/{user.id}_avatar{end_of_filename.split(".")[-1]}"
     try:
+
         file_data = await avatar.read()
         await s3_client.upload_file(file_name=filename, file_data=file_data)
     except Exception:
