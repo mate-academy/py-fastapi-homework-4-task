@@ -307,10 +307,9 @@ async def request_password_reset_token(
     status_code=status.HTTP_200_OK,
     responses={
         400: {
-            "description": (
-                    "Bad Request - The provided email or token is invalid, "
-                    "the token has expired, or the user account is not active."
-            ),
+            "description": ("Bad Request - The provided email or token is invalid, "
+                            "the token has expired, or the user account is not active."
+                            ),
             "content": {
                 "application/json": {
                     "examples": {
