@@ -53,9 +53,9 @@ async def create_profile(
     if existing_profile:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already exists"
+            detail="Profile already exists"
         )
-    profile_data_for_validatiom = {
+    profile_data_for_validation = {
         "first_name": first_name,
         "last_name": last_name,
         "gender": gender.value,
@@ -63,7 +63,7 @@ async def create_profile(
         "info": info,
     }
     try:
-        ProfileCreateSchema(**profile_data_for_validatiom)
+        ProfileCreateSchema(**profile_data_for_validation)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
