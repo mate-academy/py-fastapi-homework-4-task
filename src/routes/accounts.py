@@ -256,6 +256,7 @@ async def activate_account(
 )
 async def request_password_reset_token(
     data: PasswordResetRequestSchema,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -266,6 +267,7 @@ async def request_password_reset_token(
 
     Args:
         data (PasswordResetRequestSchema): The request data containing the user's email.
+        background_tasks (BackgroundTasks): Background tasks to send an email with reset password link.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -289,6 +291,11 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+
+    reset_link = f"{base_url}/reset-password/complete?token={reset_token.token}"
+    background_tasks.add_task(
+        email_sender.send_password_reset_email, str(data.email), reset_link
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
