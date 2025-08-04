@@ -41,6 +41,7 @@ from security.interfaces import JWTAuthManagerInterface
 router = APIRouter()
 
 email_sender = get_accounts_email_notificator(settings=get_settings())
+base_url = "http://127.0.0.1:8000/api/v1/accounts"
 
 
 @router.post(
@@ -128,8 +129,7 @@ async def register_user(
         await db.commit()
         await db.refresh(new_user)
 
-        base_url = "http://127.0.0.1:8000/api/v1/accounts/activate"
-        activation_link = f"{base_url}?token={activation_token.token}"
+        activation_link = f"{base_url}/activate?token={activation_token.token}"
         background_tasks.add_task(
             email_sender.send_activation_email,
             str(user_data.email),
@@ -174,6 +174,7 @@ async def register_user(
 )
 async def activate_account(
     activation_data: UserActivationRequestSchema,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -186,6 +187,7 @@ async def activate_account(
 
     Args:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
+        background_tasks (BackgroundTasks): Background tasks to send email notifications.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -196,6 +198,12 @@ async def activate_account(
             - 400 Bad Request if the activation token is invalid or expired.
             - 400 Bad Request if the user account is already active.
     """
+    login_link = f"{base_url}/login"
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        str(activation_data.email),
+        login_link,
+    )
     stmt = (
         select(ActivationTokenModel)
         .options(joinedload(ActivationTokenModel.user))
