@@ -343,6 +343,7 @@ async def request_password_reset_token(
 )
 async def reset_password(
     data: PasswordResetCompleteRequestSchema,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -354,6 +355,8 @@ async def reset_password(
     Args:
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
+        background_tasks (BackgroundTasks): Background tasks to send email notifications upon passowrd
+         reset completion.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -364,6 +367,11 @@ async def reset_password(
             - 400 Bad Request if the email or token is invalid, or the token has expired.
             - 500 Internal Server Error if an error occurs during the password reset process.
     """
+    login_link = f"{base_url}/login"
+    background_tasks.add_task(
+        email_sender.send_password_reset_complete_email, str(data.email), login_link
+    )
+
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
