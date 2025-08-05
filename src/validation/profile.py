@@ -29,7 +29,6 @@ def validate_image(avatar: UploadFile):
             raise ValueError(f"Unsupported image format: {image_format}. Use one of next: {supported_image_formats}")
     except IOError:
         raise ValueError("Invalid image format")
-    return contents
 
 def validate_gender(gender: str) -> None:
     if gender not in GenderEnum.__members__.values():

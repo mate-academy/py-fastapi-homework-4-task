@@ -75,6 +75,7 @@ async def profile_create(
         )
 
     new_profile = UserProfileModel(
+        user_id=user_id,
         first_name=user_profile_data.first_name,
         last_name=user_profile_data.last_name,
         avatar=avatar_url,

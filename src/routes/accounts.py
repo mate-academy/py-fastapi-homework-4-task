@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
+from sys import api_version
 from typing import cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status, HTTPException
+from h11 import Request
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +69,7 @@ router = APIRouter()
     }
 )
 async def register_user(
+        request: Request,
         user_data: UserRegistrationRequestSchema,
         background_tasks: BackgroundTasks,
         email_sender: EmailSender = Depends(get_accounts_email_notificator),
@@ -129,7 +132,9 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
-        activation_link = "http://127.0.0.1:8000/api/v1/accounts/activate/"
+        BASE_URL = str(request.base_url)
+        API_VERSION = "/api/v1/"
+        activation_link = f"{BASE_URL}{API_VERSION}accounts/activate/?token={activation_token.token}"
         background_tasks.add_task(
             email_sender.send_activation_email,
             str(user_data.email),
@@ -170,6 +175,7 @@ async def register_user(
     },
 )
 async def activate_account(
+        request: Request,
         activation_data: UserActivationRequestSchema,
         background_tasks: BackgroundTasks,
         email_sender: EmailSender = Depends(get_accounts_email_notificator),
@@ -227,7 +233,9 @@ async def activate_account(
     user.is_active = True
     await db.delete(token_record)
     await db.commit()
-    login_link = "http://127.0.0.1:8000/api/v1/accounts/login/"
+    BASE_URL = str(request.base_url)
+    API_VERSION = "/api/v1/"
+    login_link = f"{BASE_URL}{API_VERSION}accounts/login/"
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         str(activation_data.email),
@@ -247,6 +255,7 @@ async def activate_account(
     status_code=status.HTTP_200_OK,
 )
 async def request_password_reset_token(
+        request: Request,
         data: PasswordResetRequestSchema,
         background_tasks: BackgroundTasks,
         email_sender: EmailSender = Depends(get_accounts_email_notificator),
@@ -279,8 +288,9 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
-
-    reset_password_link = "http://127.0.0.1:8000/api/v1/accounts/reset-password/complete/"
+    BASE_URL = str(request.base_url)
+    API_VERSION = "/api/v1/"
+    reset_password_link = f"{BASE_URL}{API_VERSION}accounts/reset-password/complete/?token={reset_token.token}"
 
     background_tasks.add_task(
         email_sender.send_password_reset_email,
@@ -335,6 +345,7 @@ async def request_password_reset_token(
     },
 )
 async def reset_password(
+        request: Request,
         data: PasswordResetCompleteRequestSchema,
         background_tasks: BackgroundTasks,
         email_sender: EmailSender = Depends(get_accounts_email_notificator),
@@ -400,7 +411,9 @@ async def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
         )
-    login_link = "http://127.0.0.1:8000/api/v1/accounts/login/"
+    BASE_URL = str(request.base_url)
+    API_VERSION = "/api/v1/"
+    login_link = f"{BASE_URL}{API_VERSION}accounts/login/"
 
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
