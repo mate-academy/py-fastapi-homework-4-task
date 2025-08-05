@@ -1,23 +1,29 @@
 from datetime import date
 
-from fastapi import UploadFile
-from pydantic import BaseModel, field_validator, HttpUrl
+from fastapi import Form
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from validation import (
     validate_name,
-    validate_image,
     validate_gender,
     validate_birth_date
 )
 
-
-class ProfileBaseSchema(BaseModel):
+class ProfileResponseSchema(BaseModel):
     first_name: str
     last_name: str
     gender: str
     date_of_birth: date
     info: str
-    avatar: UploadFile
+    avatar: str
+    model_config = ConfigDict(from_attributes=True)
+
+class ProfileRequestSchema(BaseModel):
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
     
     @field_validator("first_name")
     @classmethod
@@ -38,17 +44,20 @@ class ProfileBaseSchema(BaseModel):
     @classmethod
     def validate_date_of_birth(cls, v):
         return validate_birth_date(v)
+
+
+async def get_profile_form(
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    gender: str = Form(...),
+    date_of_birth: date = Form(...),
+    info: str = Form(...),
+) -> ProfileRequestSchema:
     
-    @field_validator("avatar")
-    @classmethod
-    def validate_avatar(cls, v):
-        return validate_image(v)
-
-class ProfileRequestSchema(ProfileBaseSchema):
-    pass
-
-class ProfileResponseSchema(ProfileBaseSchema):
-    id: int
-    user_id: int
-    avatar: HttpUrl
-    model_config = {"from_attributes": True}
+    return ProfileRequestSchema(
+        first_name=first_name,
+        last_name=last_name,
+        gender=gender,
+        date_of_birth=date_of_birth,
+        info=info,
+    )

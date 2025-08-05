@@ -13,7 +13,7 @@ def validate_name(name: str):
         raise ValueError(f'{name} contains non-english letters')
 
 
-def validate_image(avatar: UploadFile) -> None:
+def validate_image(avatar: UploadFile):
     supported_image_formats = ["JPG", "JPEG", "PNG"]
     max_file_size = 1 * 1024 * 1024
 
