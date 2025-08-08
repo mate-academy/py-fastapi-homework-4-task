@@ -1,9 +1,8 @@
-from typing import cast
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import HttpUrl
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import cast
+from pydantic import HttpUrl
 
 from config import get_s3_storage_client, get_jwt_auth_manager
 from database import get_db
@@ -13,7 +12,8 @@ from schemas.profiles import ProfileCreateSchema, ProfileResponseSchema
 from security.interfaces import JWTAuthManagerInterface
 from security.http import get_token
 from storages import S3StorageInterface
-
+from notifications.interfaces import EmailSenderInterface
+from config.dependencies import get_accounts_email_notificator
 
 router = APIRouter()
 
@@ -25,20 +25,19 @@ router = APIRouter()
 )
 async def create_profile(
         user_id: int,
+        background_tasks: BackgroundTasks,
         token: str = Depends(get_token),
         jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
         db: AsyncSession = Depends(get_db),
         s3_client: S3StorageInterface = Depends(get_s3_storage_client),
-        profile_data: ProfileCreateSchema = Depends(ProfileCreateSchema.from_form)
+        profile_data: ProfileCreateSchema = Depends(ProfileCreateSchema.from_form),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> ProfileResponseSchema:
     try:
         payload = jwt_manager.decode_access_token(token)
         token_user_id = payload.get("user_id")
     except BaseSecurityError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
     if user_id != token_user_id:
         stmt = (
@@ -99,6 +98,12 @@ async def create_profile(
     await db.refresh(new_profile)
 
     avatar_url = await s3_client.get_file_url(new_profile.avatar)
+
+    background_tasks.add_task(
+        email_sender.send_profile_created_email,
+        user_email=user.email,
+        full_name=f"{new_profile.first_name} {new_profile.last_name}"
+    )
 
     return ProfileResponseSchema(
         id=new_profile.id,
