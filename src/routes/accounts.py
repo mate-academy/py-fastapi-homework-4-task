@@ -227,7 +227,7 @@ async def activate_account(
     user.is_active = True
     await db.delete(token_record)
     await db.commit()
-    login_link = f"http://127.0.0.1/api/v1/accounts/login/"
+    login_link = "http://127.0.0.1/api/v1/accounts/login/"
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         str(user.email),
@@ -396,7 +396,7 @@ async def reset_password(
         user.password = data.password
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
-        login_link = f"http://127.0.0.1/api/v1/accounts/login/"
+        login_link = "http://127.0.0.1/api/v1/accounts/login/"
         background_tasks.add_task(
             email_sender.send_password_reset_complete_email,
             str(user.email),
