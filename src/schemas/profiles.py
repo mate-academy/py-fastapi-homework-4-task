@@ -65,7 +65,7 @@ class ProfileRequestSchema(BaseModel):
             return avatar
         except ValueError as e:
             raise HTTPException(
-                status_code=422,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=[{
                     "type": "value_error",
                     "loc": ["avatar"],
