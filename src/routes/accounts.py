@@ -126,8 +126,8 @@ async def register_user(
         activation_link = f"http://127.0.0.1/accounts/activate?token={activation_token.token}/"
         background_tasks.add_task(
             email_sender.send_activation_email,
-            email=new_user.email,
-            activation_link=activation_link
+            new_user.email,
+            activation_link
         )
     except SQLAlchemyError as e:
         await db.rollback()
@@ -232,8 +232,8 @@ async def activate_account(
     login_link = "http://127.0.0.1/accounts/login/"
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
-        email=user.email,
-        login_link=login_link
+        user.email,
+        login_link
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -286,8 +286,8 @@ async def request_password_reset_token(
     reset_link = "http://127.0.0.1/accounts/password-reset/request/"
     background_tasks.add_task(
         email_sender.send_password_reset_email,
-        email=user.email,
-        reset_link=reset_link
+        user.email,
+        reset_link
     )
 
     return MessageResponseSchema(
@@ -402,8 +402,8 @@ async def reset_password(
         login_link = "http://127.0.0.1/accounts/login/"
         background_tasks.add_task(
             email_sender.send_password_reset_complete_email,
-            email=user.email,
-            login_link=login_link
+            user.email,
+            login_link
         )
     except SQLAlchemyError:
         await db.rollback()
