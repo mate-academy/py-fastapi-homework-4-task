@@ -32,7 +32,7 @@ def validate_image(avatar: UploadFile) -> None:
 
 
 def validate_gender(gender: str) -> None:
-    if gender not in GenderEnum.__members__.values():
+    if gender not in [e.value for e in GenderEnum]:
         raise ValueError(f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}")
 
 

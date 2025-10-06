@@ -42,7 +42,7 @@ services:
       - .env
     environment:
       - LOG_LEVEL=debug
-      - PYTHONPATH=/usr/src/fastapi
+      - PYTHONPATH=/usr/src/app
       - WATCHFILES_FORCE_POLLING=true
     ports:
       - "8000:8000"
@@ -52,7 +52,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./src:/usr/src/fastapi
+      - ./src:/usr/src/app
     networks:
       - theater_network
 
@@ -64,11 +64,11 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./src:/usr/src/fastapi
+      - ./src:/usr/src/app
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/usr/src/fastapi
+      - PYTHONPATH=/usr/src/app
     networks:
       - theater_network
 
@@ -78,7 +78,7 @@ services:
       context: .
       dockerfile: ./docker/mailhog/Dockerfile
     container_name: mailhog_theater
-    command: ["/bin/bash", "-c", "/commands/setup_mailhog_auth.sh && ~/go/bin/MailHog"]
+    command: ["/bin/bash", "-c", "/commands/setup_mailhog_auth.sh && /usr/local/bin/MailHog"]
     ports:
       - "8025:8025"
       - "1025:1025"

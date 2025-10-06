@@ -23,6 +23,9 @@ jobs:
           pip install poetry
           poetry install
 
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src" >> $GITHUB_ENV  
+
       - name: Run flake8
         run: |
           poetry run flake8 src

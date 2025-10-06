@@ -2,6 +2,10 @@ from logging.config import fileConfig
 
 from alembic import context
 
+# import sys
+# from pathlib import Path
+# sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 from database.models import movies, accounts # noqa: F401
 from database.models.base import Base
 from database.session_postgresql import sync_postgresql_engine
