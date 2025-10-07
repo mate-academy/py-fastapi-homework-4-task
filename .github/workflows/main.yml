@@ -22,6 +22,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install poetry
           poetry install
+          
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${{ github.workspace }}/src:$PYTHONPATH" >> $GITHUB_ENV
 
       - name: Run flake8
         run: |
