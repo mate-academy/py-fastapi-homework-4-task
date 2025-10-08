@@ -1,13 +1,31 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Check if MailHog user and password are set
-if [ -n "$MAILHOG_USER" ] && [ -n "$MAILHOG_PASSWORD" ]; then
-  # Generate bcrypt-hashed password
-  HASHED_PASSWORD=$(MailHog bcrypt "$MAILHOG_PASSWORD")
+AUTH_FILE="/mailhog.auth"
+MAILHOG_BIN="/usr/local/bin/mailhog"
 
-  # Create authentication file with username and hashed password
-  echo "$MAILHOG_USER:$HASHED_PASSWORD" > /mailhog.auth
-  echo "Auth file created with user: $MAILHOG_USER and hashed password."
-else
-  echo "MAILHOG_USER or MAILHOG_PASSWORD not set. Auth file not created."
+if [[ -z "${MAILHOG_USER:-}" || -z "${MAILHOG_PASSWORD:-}" ]]; then
+  echo "[FATAL] MAILHOG_USER або MAILHOG_PASSWORD не задано, а MH_AUTH_FILE увімкнено."
+  echo "        Або задай обидві змінні, або прибери MH_AUTH_FILE/авторизацію."
+  exit 1
 fi
+
+if [[ ! -x "$MAILHOG_BIN" ]]; then
+  if command -v MailHog >/dev/null 2>&1; then
+    MAILHOG_BIN="$(command -v MailHog)"
+  elif command -v mailhog >/dev/null 2>&1; then
+    MAILHOG_BIN="$(command -v mailhog)"
+  else
+    exit 1
+  fi
+fi
+
+HASHED_PASSWORD="$("$MAILHOG_BIN" bcrypt "$MAILHOG_PASSWORD")"
+if [[ -z "$HASHED_PASSWORD" ]]; then
+  exit 1
+fi
+
+echo "${MAILHOG_USER}:${HASHED_PASSWORD}" > "$AUTH_FILE"
+chmod 600 "$AUTH_FILE"
+
+echo "[OK] Created $AUTH_FILE for user: '${MAILHOG_USER}'."
