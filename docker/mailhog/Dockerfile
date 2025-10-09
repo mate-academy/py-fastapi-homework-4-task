@@ -10,3 +10,5 @@ COPY commands/setup_mailhog_auth.sh /commands/setup_mailhog_auth.sh
 RUN chmod +x /commands/setup_mailhog_auth.sh
 
 EXPOSE 1025 8025
+
+CMD ["mailhog", "-smtp-bind-addr", "0.0.0.0:1025", "-ui-bind-addr", "0.0.0.0:8025"]
