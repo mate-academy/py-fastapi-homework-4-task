@@ -12,12 +12,12 @@ from validation import (
 
 
 class ProfileRequestSchema(BaseModel):
-    first_name: str = Form(...)
-    last_name: str = Form(...)
-    gender: str = Form(...)
-    date_of_birth: date = Form(...)
-    info: str = Form(...)
-    avatar: UploadFile = File(...)
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
+    avatar: UploadFile
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -63,7 +63,7 @@ class ProfileRequestSchema(BaseModel):
 
     @field_validator("date_of_birth")
     @classmethod
-    def validate_birth_date(cls, value: str) -> str:
+    def validate_birth_date(cls, value: date) -> date:
         validate_birth_date(value)
         return value
 
