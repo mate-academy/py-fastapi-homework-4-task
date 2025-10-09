@@ -12,6 +12,7 @@ from validation import (
     validate_info
 )
 
+
 class ProfileCreateRequestSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     first_name: str
@@ -50,6 +51,7 @@ class ProfileCreateRequestSchema(BaseModel):
     def validate_info(cls, value):
         validate_info(value)
         return value
+
 
 class ProfileCreateResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)

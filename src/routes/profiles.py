@@ -16,6 +16,7 @@ from storages import S3StorageInterface
 
 router = APIRouter()
 
+
 @router.post(
     "/users/{user_id}/profile/",
     status_code=status.HTTP_201_CREATED,
