@@ -50,6 +50,7 @@ class ProfileCreateRequestSchema(BaseModel):
         validate_info(value)
         return value
 
+
 class ProfileCreateResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
