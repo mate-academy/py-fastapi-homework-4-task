@@ -20,15 +20,17 @@ router = APIRouter()
 
 @router.post(
     "/users/{user_id}/profile/",
+    response_model=ResponseProfileSchema,
     status_code=status.HTTP_201_CREATED,
+    responses={},
 )
 async def create_user_profile(
     user_id: int,
-    profile_data: Annotated[RequestProfileSchema, Form()],
-    db: Annotated[AsyncSession, Depends(get_db)],
     token: Annotated[str, Depends(get_token)],
     jwt_manager: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
+    profile_data: RequestProfileSchema = Depends(RequestProfileSchema.as_form),
 ) -> ResponseProfileSchema:
     try:
         token = jwt_manager.decode_access_token(token)
