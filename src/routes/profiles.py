@@ -96,6 +96,8 @@ async def create_profile(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
 
     token_user_id = decoded_token.get("user_id")
+    if not token_user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
 
     stmt_target_user = select(UserModel).where(UserModel.id == user_id)
     target_user = await db.scalar(stmt_target_user)
@@ -109,7 +111,7 @@ async def create_profile(
     stmt_group = select(UserGroupModel.name).where(UserGroupModel.id == current_user.group_id)
     current_user_group = await db.scalar(stmt_group)
 
-    is_admin = current_user_group == UserGroupEnum.ADMIN
+    is_admin = current_user_group == UserGroupEnum.ADMIN.value
     if user_id != token_user_id and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
