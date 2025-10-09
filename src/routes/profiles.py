@@ -10,7 +10,7 @@ from starlette import status
 from config import get_jwt_auth_manager, get_s3_storage_client
 from database import UserGroupEnum, UserModel, UserProfileModel, get_db
 from exceptions import BaseS3Error, BaseSecurityError
-from schemas.profiles import RequestProfileSchema, ResponseProfileSchema
+from schemas.profiles import RequestProfileSchema, ProfileResponseSchema
 from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
@@ -20,7 +20,7 @@ router = APIRouter()
 
 @router.post(
     "/users/{user_id}/profile/",
-    response_model=ResponseProfileSchema,
+    response_model=ProfileResponseSchema,
     status_code=status.HTTP_201_CREATED,
     responses={},
 )
@@ -31,7 +31,7 @@ async def create_user_profile(
     db: Annotated[AsyncSession, Depends(get_db)],
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
     profile_data: RequestProfileSchema = Depends(RequestProfileSchema.as_form),
-) -> ResponseProfileSchema:
+) -> ProfileResponseSchema:
     try:
         token = jwt_manager.decode_access_token(token)
     except BaseSecurityError as error:
@@ -88,7 +88,7 @@ async def create_user_profile(
     db.add(profile)
     await db.commit()
 
-    return ResponseProfileSchema(
+    return ProfileResponseSchema(
         id=profile.id,
         user_id=profile.user_id,
         first_name=profile.first_name,
