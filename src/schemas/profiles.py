@@ -53,30 +53,6 @@ class RequestProfileSchema(BaseModel):
     @classmethod
     def as_form(
             cls,
-            first_name: str = Form(...),
-            last_name: str = Form(...),
-            gender: str = Form(...),
-            date_of_birth: date = Form(...),
-            info: str = Form(...),
-            avatar: UploadFile = File(...),
-    ):
-        if not info.strip():
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Info field cannot be empty or contain only spaces."
-            )
-        return cls(
-            first_name=first_name,
-            last_name=last_name,
-            gender=gender,
-            date_of_birth=date_of_birth,
-            info=info,
-            avatar=avatar,
-        )
-
-    @classmethod
-    def as_form(
-            cls,
             first_name: str = Form(),
             last_name: str = Form(),
             gender: str = Form(),
