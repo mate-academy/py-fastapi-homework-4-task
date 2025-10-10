@@ -1,4 +1,5 @@
 import pdb
+
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -11,7 +12,14 @@ from schemas.profiles import ProfileResponseSchema
 from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
 from exceptions.storage import S3FileUploadError, BaseS3Error
-from schemas.profiles import ProfileCreateSchema
+
+from validation.profile import validate_name
+
+from validation.profile import validate_gender, validate_birth_date
+
+from validation.profile import validate_image
+
+from exceptions.security import TokenExpiredError
 
 router = APIRouter(prefix="/users", tags=["profiles"])
 
@@ -19,10 +27,18 @@ router = APIRouter(prefix="/users", tags=["profiles"])
 # ----------------- Validation Functions -----------------
 async def validate_profile_fields(first_name: str, last_name: str, gender: str, dob: date, info: str):
     try:
-        v_first_name = ProfileCreateSchema.validate_first_name(first_name)
-        v_last_name = ProfileCreateSchema.validate_last_name(last_name)
-        v_gender = ProfileCreateSchema.validate_gender_field(gender)
-        v_dob = ProfileCreateSchema.validate_date_of_birth_field(dob)
+        validate_name(first_name)
+        v_first_name = first_name
+
+        validate_name(last_name)
+        v_last_name = last_name
+
+        validate_gender(gender)
+        v_gender = gender
+
+        validate_birth_date(dob)
+        v_dob = dob
+
         if not info or not info.strip():
             raise ValueError("Info field cannot be empty or contain only spaces.")
         v_info = info.strip()
@@ -31,35 +47,40 @@ async def validate_profile_fields(first_name: str, last_name: str, gender: str, 
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
 
-async def validate_avatar_file(avatar: UploadFile, settings: BaseAppSettings):
+async def validate_avatar_file(avatar: UploadFile):
     try:
-        content = await avatar.read()
-        max_size = getattr(settings, "MAX_AVATAR_SIZE_MB", 1) * 1024 * 1024
-        if len(content) > max_size:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="Image size exceeds 1 MB")
-        if avatar.content_type not in ["image/jpeg", "image/jpg", "image/png"]:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="Invalid image format. Avatar must be JPG, JPEG, or PNG")
-        return content
+        validate_image(avatar=avatar)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="An unexpected error occurred during file processing.")
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid image format"
+        )
 
 
 # ----------------- User Functions -----------------
 async def decode_token(token: str, jwt_manager: JWTAuthManagerInterface):
+
     try:
         payload = jwt_manager.decode_access_token(token)
-        current_id = payload.get("user_id")
-        if current_id is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                detail="Token is invalid or user_id missing.")
-        return current_id
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.")
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token is invalid or user_id missing."
+            )
+        return user_id
+    except TokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired."
+        )
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int):
@@ -115,7 +136,7 @@ async def create_user_profile(
         first_name, last_name, gender, date_of_birth, info
     )
 
-    avatar_content = await validate_avatar_file(avatar, settings)
+    avatar_content = await validate_avatar_file(avatar)
     current_user_id = await decode_token(token, jwt_manager)
     current_user = await get_user_by_id(db, current_user_id)
     await check_permissions(current_user_id, current_user, user_id)

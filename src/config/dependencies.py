@@ -1,4 +1,6 @@
 import os
+from typing import Optional
+
 from fastapi import Depends, Request, HTTPException, status
 from config.settings import TestingSettings, Settings, BaseAppSettings
 from notifications import EmailSenderInterface, EmailSender
@@ -110,7 +112,7 @@ def get_token(request: Request) -> str:
     Raises:
         HTTPException: 401 Unauthorized if the header is missing or malformed.
     """
-    authorization: str = request.headers.get("Authorization")
+    authorization: Optional[str] = request.headers.get("Authorization")
 
     if not authorization:
         raise HTTPException(
@@ -125,5 +127,5 @@ def get_token(request: Request) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Authorization header format. Expected 'Bearer <token>'"
         )
-
+    token = authorization.partition(" ")[2].strip()
     return token
