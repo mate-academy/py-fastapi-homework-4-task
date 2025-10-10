@@ -57,7 +57,7 @@ async def validate_avatar_file(avatar: UploadFile):
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid image format"

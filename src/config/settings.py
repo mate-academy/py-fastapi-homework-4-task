@@ -60,6 +60,7 @@ class TestingSettings(BaseAppSettings):
             str(self.BASE_DIR / "database" / "seed_data" / "test_data.csv")
         )
 
+
 def get_settings() -> BaseAppSettings:
     """
     Returns the appropriate settings instance based on the ENVIRONMENT variable.
