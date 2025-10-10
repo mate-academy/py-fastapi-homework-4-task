@@ -22,22 +22,26 @@ class ProfileCreateSchema(BaseModel):
     @field_validator("first_name")
     @classmethod
     def validate_first_name(cls, value: str) -> str:
-        return validate_name(value, "First name")
+        validate_name(value)
+        return value
 
     @field_validator("last_name")
     @classmethod
     def validate_last_name(cls, value: str) -> str:
-        return validate_name(value, "Last name")
+        validate_name(value)
+        return value
 
     @field_validator("gender")
     @classmethod
     def validate_gender_field(cls, value: str) -> str:
-        return validate_gender(value)
+        validate_gender(value)
+        return value
 
     @field_validator("date_of_birth")
     @classmethod
     def validate_date_of_birth_field(cls, value: date) -> date:
-        return validate_birth_date(value)
+        validate_birth_date(value)
+        return value
 
     @field_validator("info")
     @classmethod
@@ -50,7 +54,8 @@ class ProfileCreateSchema(BaseModel):
     @classmethod
     def validate_avatar_field(cls, value: str) -> str:
         """Validate avatar is a valid image format and size."""
-        return validate_image(value)
+        validate_image(value)
+        return value
 
 
 class ProfileResponseSchema(BaseModel):
