@@ -8,9 +8,14 @@ from fastapi import UploadFile
 from database.models.accounts import GenderEnum
 
 
-def validate_name(name: str):
-    if re.search(r'^[A-Za-z]*$', name) is None:
-        raise ValueError(f'{name} contains non-english letters')
+def validate_name(name: str) -> str:
+    if not name or not name.strip():
+        raise ValueError("Name cannot be empty or whitespace.")
+    if re.fullmatch(r"[A-Za-z]+", name.strip()) is None:
+        raise ValueError(f"{name} contains non-English letters")
+    if len(name.strip()) < 2:
+        raise ValueError("Name must be at least 2 characters long.")
+    return name.strip()
 
 
 def validate_image(avatar: UploadFile) -> None:
@@ -31,8 +36,10 @@ def validate_image(avatar: UploadFile) -> None:
         raise ValueError("Invalid image format")
 
 
-def validate_gender(gender: str) -> None:
-    if gender not in GenderEnum.__members__.values():
+def validate_gender(gender: str) -> GenderEnum:
+    try:
+        return GenderEnum(gender.lower())
+    except ValueError:
         raise ValueError(f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}")
 
 

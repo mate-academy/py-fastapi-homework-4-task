@@ -55,7 +55,6 @@ async def create_user_profile(
     if user_for_profile.profile:
         raise HTTPException(status_code=400, detail="User already has a profile.")
 
-    # --- Робота з аватаром ---
     _, extension = os.path.splitext(avatar.filename)
     avatar_path = f"avatars/{user_id}_avatar{extension}"
     file_bytes = await avatar.read()
@@ -65,16 +64,15 @@ async def create_user_profile(
     except BaseS3Error:
         raise HTTPException(status_code=500, detail="Failed to upload avatar. Please try again later.")
 
-    # --- Валідація текстових полів через Pydantic ---
     profile_data = ProfileCreateRequestSchema(
         first_name=first_name,
         last_name=last_name,
         gender=gender,
         date_of_birth=date_of_birth,
         info=info,
+        avatar=avatar
     )
 
-    # --- Створення профілю ---
     profile = UserProfileModel(
         first_name=profile_data.first_name,
         last_name=profile_data.last_name,

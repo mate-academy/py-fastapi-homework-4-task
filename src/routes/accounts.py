@@ -429,7 +429,7 @@ async def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
         )
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = "http://127.0.0.1:8000/accounts/login/"
 
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
