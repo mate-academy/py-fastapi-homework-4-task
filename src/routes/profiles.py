@@ -1,7 +1,8 @@
 import os
+from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Depends, HTTPException
+from fastapi import APIRouter, Form, Depends, HTTPException, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -23,64 +24,57 @@ router = APIRouter()
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user_profile(
-    user_id: int,
-    profile_data: Annotated[ProfileCreateRequestSchema, Form()],
     db: Annotated[AsyncSession, Depends(get_db)],
     token: Annotated[str, Depends(get_token)],
     jwt_manager: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
+    user_id: int,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    gender: str = Form(...),
+    date_of_birth: date = Form(...),
+    info: str | None = Form(None),
+    avatar: UploadFile = File(...),
 ) -> ProfileCreateResponseSchema:
     try:
         token = jwt_manager.decode_access_token(token)
     except BaseSecurityError as error:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(error)
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(error))
     current_user = await db.scalar(
-        select(
-            UserModel
-        ).where(
-            UserModel.id == token.get("user_id")
-        ).options(
-            joinedload(UserModel.group),
-        )
+        select(UserModel)
+        .where(UserModel.id == token.get("user_id"))
+        .options(joinedload(UserModel.group))
     )
     if not current_user or not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or not active."
-        )
+        raise HTTPException(status_code=401, detail="User not found or not active.")
     if not current_user.has_group(UserGroupEnum.ADMIN) and current_user.id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to edit this profile."
-        )
+        raise HTTPException(status_code=403, detail="You don't have permission to edit this profile.")
     user_for_profile = await db.scalar(
-        select(
-            UserModel
-        ).where(
-            UserModel.id == user_id
-        ).options(
-            joinedload(UserModel.profile),
-        )
+        select(UserModel).where(UserModel.id == user_id).options(joinedload(UserModel.profile))
     )
     if user_for_profile.profile:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already has a profile."
-        )
-    _, extension = os.path.splitext(profile_data.avatar.filename)
+        raise HTTPException(status_code=400, detail="User already has a profile.")
+
+    # --- Робота з аватаром ---
+    _, extension = os.path.splitext(avatar.filename)
     avatar_path = f"avatars/{user_id}_avatar{extension}"
-    file = await profile_data.avatar.read()
+    file_bytes = await avatar.read()
     try:
-        await s3_client.upload_file(avatar_path, file)
+        await s3_client.upload_file(avatar_path, file_bytes)
         avatar_url = await s3_client.get_file_url(avatar_path)
     except BaseS3Error:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload avatar. Please try again later."
-        )
+        raise HTTPException(status_code=500, detail="Failed to upload avatar. Please try again later.")
+
+    # --- Валідація текстових полів через Pydantic ---
+    profile_data = ProfileCreateRequestSchema(
+        first_name=first_name,
+        last_name=last_name,
+        gender=gender,
+        date_of_birth=date_of_birth,
+        info=info,
+    )
+
+    # --- Створення профілю ---
     profile = UserProfileModel(
         first_name=profile_data.first_name,
         last_name=profile_data.last_name,
@@ -92,6 +86,7 @@ async def create_user_profile(
     )
     db.add(profile)
     await db.commit()
+
     return ProfileCreateResponseSchema(
         id=profile.id,
         user_id=profile.user_id,

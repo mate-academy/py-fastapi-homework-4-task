@@ -25,7 +25,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 error["input"] = "UploadFile"
     return JSONResponse(
         status_code=422,
-        content=jsonable_encoder({"detail": exc.errors()}),
+        content=jsonable_encoder({"detail": errors}),
     )
 
 
