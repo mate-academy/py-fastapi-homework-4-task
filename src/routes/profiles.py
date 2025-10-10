@@ -47,9 +47,12 @@ async def validate_profile_fields(first_name: str, last_name: str, gender: str, 
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
 
-async def validate_avatar_file(avatar: UploadFile):
+async def validate_avatar_file(avatar: UploadFile) -> bytes:
     try:
         validate_image(avatar=avatar)
+        avatar.file.seek(0)
+        content = await avatar.read()
+        return content
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
