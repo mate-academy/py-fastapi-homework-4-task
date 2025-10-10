@@ -51,11 +51,16 @@ async def create_user_profile(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or not active."
         )
-    if not current_user.has_group(UserGroupEnum.ADMIN) and current_user.id != user_id:
+    if (
+            not current_user.has_group(UserGroupEnum.ADMIN)
+            and not current_user.has_group(UserGroupEnum.MODERATOR)
+            and current_user.id != user_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile."
         )
+
     user_for_profile = await db.scalar(
         select(
             UserModel
