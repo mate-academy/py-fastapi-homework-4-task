@@ -30,7 +30,7 @@ class ProfileCreateRequestSchema(BaseModel):
 
     @field_validator("gender", mode="before")
     @classmethod
-    def validate_gender(cls, value):
+    def validate_gender_field(cls, value):
         validate_gender(value)
         return value
 
@@ -48,7 +48,7 @@ class ProfileCreateRequestSchema(BaseModel):
 
     @field_validator("info")
     @classmethod
-    def validate_info(cls, value):
+    def validate_info_field(cls, value):
         validate_info(value)
         return value
 
