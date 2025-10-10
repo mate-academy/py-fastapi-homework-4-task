@@ -11,7 +11,7 @@ from validation import (
 )
 
 
-class ProfileCreateRequestSchema(BaseModel):
+class ProfileRequestSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     first_name: str
     last_name: str
@@ -51,7 +51,7 @@ class ProfileCreateRequestSchema(BaseModel):
         return value
 
 
-class ProfileCreateResponseSchema(BaseModel):
+class ProfileResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     user_id: int

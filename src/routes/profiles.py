@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload
 
 from config import get_jwt_auth_manager, get_s3_storage_client
 from exceptions import BaseSecurityError, BaseS3Error
-from schemas import ProfileCreateResponseSchema, ProfileCreateRequestSchema
+from schemas import ProfileResponseSchema, ProfileRequestSchema
 from database import get_db, UserModel, UserGroupEnum, UserProfileModel
 from security.http import get_token
 
@@ -24,12 +24,12 @@ router = APIRouter()
 )
 async def create_user_profile(
     user_id: int,
-    profile_data: Annotated[ProfileCreateRequestSchema, Form()],
+    profile_data: Annotated[ProfileRequestSchema, Form()],
     db: Annotated[AsyncSession, Depends(get_db)],
     token: Annotated[str, Depends(get_token)],
     jwt_manager: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
-) -> ProfileCreateResponseSchema:
+) -> ProfileResponseSchema:
     try:
         token = jwt_manager.decode_access_token(token)
     except BaseSecurityError as error:
@@ -92,7 +92,7 @@ async def create_user_profile(
     )
     db.add(profile)
     await db.commit()
-    return ProfileCreateResponseSchema(
+    return ProfileResponseSchema(
         id=profile.id,
         user_id=profile.user_id,
         first_name=profile.first_name,
