@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import datetime, date
 
 from fastapi import (
     APIRouter,
@@ -21,8 +21,13 @@ from schemas import ProfileCreateRequestSchema, ProfileCreateResponseSchema
 from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
-from validation import validate_image
-
+from validation import (
+    validate_name,
+    validate_image,
+    validate_gender,
+    validate_birth_date,
+    validate_info,
+)
 
 router = APIRouter()
 
@@ -45,6 +50,7 @@ async def create_user_profile(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
 ) -> ProfileCreateResponseSchema:
+
     try:
         payload = jwt_manager.decode_access_token(token)
     except BaseSecurityError as error:
@@ -56,24 +62,28 @@ async def create_user_profile(
         .options(joinedload(UserModel.group))
     )
     if not current_user or not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or not active.")
-
+        raise HTTPException(status_code=401, detail="User not found or not active.")
     if not current_user.has_group(UserGroupEnum.ADMIN) and current_user.id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have permission to edit this profile.")
+        raise HTTPException(status_code=403, detail="You don't have permission to edit this profile.")
 
     existing_profile = await db.scalar(select(UserProfileModel).where(UserProfileModel.user_id == user_id))
     if existing_profile:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already has a profile.")
+        raise HTTPException(status_code=400, detail="User already has a profile.")
+
+    validate_name(first_name)
+    validate_name(last_name)
+    validate_gender(gender)
+    validate_info(info)
+
+    try:
+        parsed_date = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
+        validate_birth_date(parsed_date)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
 
     validate_image(avatar)
 
-    profile_data = ProfileCreateRequestSchema(
-        first_name=first_name,
-        last_name=last_name,
-        gender=gender,
-        date_of_birth=date.fromisoformat(date_of_birth),
-        info=info,
-    )
+    await avatar.seek(0)
 
     _, extension = os.path.splitext(avatar.filename)
     avatar_path = f"avatars/{user_id}_avatar{extension or '.jpg'}"
@@ -82,15 +92,15 @@ async def create_user_profile(
         await s3_client.upload_file(avatar_path, await avatar.read())
         avatar_url = await s3_client.get_file_url(avatar_path)
     except BaseS3Error:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to upload avatar. Please try again later.")
+        raise HTTPException(status_code=500, detail="Failed to upload avatar. Please try again later.")
 
     profile = UserProfileModel(
         user_id=user_id,
-        first_name=profile_data.first_name,
-        last_name=profile_data.last_name,
-        gender=profile_data.gender,
-        date_of_birth=profile_data.date_of_birth,
-        info=profile_data.info,
+        first_name=first_name.lower(),
+        last_name=last_name.lower(),
+        gender=gender,
+        date_of_birth=parsed_date,
+        info=info,
         avatar=avatar_path,
     )
 
