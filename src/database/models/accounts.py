@@ -1,25 +1,10 @@
 import enum
-from datetime import datetime, date, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 
-from sqlalchemy import (
-    ForeignKey,
-    String,
-    Boolean,
-    DateTime,
-    Enum,
-    Integer,
-    func,
-    Text,
-    Date,
-    UniqueConstraint
-)
-from sqlalchemy.orm import (
-    Mapped,
-    mapped_column,
-    relationship,
-    validates
-)
+from sqlalchemy import (Boolean, Date, DateTime, Enum, ForeignKey, Integer,
+                        String, Text, UniqueConstraint, func)
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from database import Base
 from database.validators import accounts as validators

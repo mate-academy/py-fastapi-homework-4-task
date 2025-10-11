@@ -1,19 +1,14 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
-from database import (
-    UserModel,
-    ActivationTokenModel,
-    PasswordResetTokenModel,
-    UserGroupModel,
-    UserGroupEnum,
-    RefreshTokenModel
-)
+from database import (ActivationTokenModel, PasswordResetTokenModel,
+                      RefreshTokenModel, UserGroupEnum, UserGroupModel,
+                      UserModel)
 
 
 @pytest.mark.asyncio

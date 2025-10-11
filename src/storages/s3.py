@@ -1,12 +1,8 @@
 from typing import Union
 
 import aioboto3
-from botocore.exceptions import (
-    BotoCoreError,
-    NoCredentialsError,
-    HTTPClientError,
-    ConnectionError
-)
+from botocore.exceptions import (BotoCoreError, ConnectionError,
+                                 HTTPClientError, NoCredentialsError)
 
 from exceptions import S3ConnectionError, S3FileUploadError
 from storages import S3StorageInterface

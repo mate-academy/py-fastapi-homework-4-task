@@ -1,36 +1,25 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
-from sqlalchemy import select, delete
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config import get_jwt_auth_manager, get_settings, BaseAppSettings, get_accounts_email_notificator
-from database import (
-    get_db,
-    UserModel,
-    UserGroupModel,
-    UserGroupEnum,
-    ActivationTokenModel,
-    PasswordResetTokenModel,
-    RefreshTokenModel
-)
+from config import (BaseAppSettings, get_accounts_email_notificator,
+                    get_jwt_auth_manager, get_settings)
+from database import (ActivationTokenModel, PasswordResetTokenModel,
+                      RefreshTokenModel, UserGroupEnum, UserGroupModel,
+                      UserModel, get_db)
 from exceptions import BaseSecurityError
 from notifications import EmailSenderInterface
-from schemas import (
-    UserRegistrationRequestSchema,
-    UserRegistrationResponseSchema,
-    MessageResponseSchema,
-    UserActivationRequestSchema,
-    PasswordResetRequestSchema,
-    PasswordResetCompleteRequestSchema,
-    UserLoginResponseSchema,
-    UserLoginRequestSchema,
-    TokenRefreshRequestSchema,
-    TokenRefreshResponseSchema
-)
+from schemas import (MessageResponseSchema, PasswordResetCompleteRequestSchema,
+                     PasswordResetRequestSchema, TokenRefreshRequestSchema,
+                     TokenRefreshResponseSchema, UserActivationRequestSchema,
+                     UserLoginRequestSchema, UserLoginResponseSchema,
+                     UserRegistrationRequestSchema,
+                     UserRegistrationResponseSchema)
 from security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()

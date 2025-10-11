@@ -1,17 +1,13 @@
-from email_validator import validate_email, EmailNotValidError
+import httpx
+import pytest
+from bs4 import BeautifulSoup
+from email_validator import EmailNotValidError, validate_email
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from validators import url as validate_url
-import pytest
-import httpx
-from bs4 import BeautifulSoup
 
-from database import (
-    ActivationTokenModel,
-    UserModel,
-    RefreshTokenModel,
-    PasswordResetTokenModel
-)
+from database import (ActivationTokenModel, PasswordResetTokenModel,
+                      RefreshTokenModel, UserModel)
 
 
 @pytest.mark.e2e

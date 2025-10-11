@@ -1,15 +1,11 @@
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 
 from config.settings import BaseAppSettings
-from routes import (
-    movie_router,
-    accounts_router,
-    profiles_router
-)
+from routes import accounts_router, movie_router, profiles_router
 
 base_app_settings = BaseAppSettings()
 

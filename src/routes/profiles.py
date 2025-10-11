@@ -1,16 +1,17 @@
 import os.path
 from typing import Annotated
 
-from fastapi import APIRouter, status, Depends, Form, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Form, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from config import get_jwt_auth_manager, get_s3_storage_client
-from database import get_db, UserModel, UserGroupEnum, UserProfileModel
-from exceptions import BaseSecurityError, BaseS3Error
+from database import UserGroupEnum, UserModel, UserProfileModel, get_db
+from exceptions import BaseS3Error, BaseSecurityError
+from schemas.profiles import (ProfileCreateRequestSchema,
+                              ProfileCreateResponseSchema)
 from security.http import get_token
-from schemas.profiles import ProfileCreateRequestSchema, ProfileCreateResponseSchema
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
 

@@ -1,15 +1,11 @@
 from datetime import date
+
 from fastapi import UploadFile
-from pydantic import BaseModel, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from database.models.accounts import GenderEnum
-from validation import (
-    validate_name,
-    validate_image,
-    validate_gender,
-    validate_birth_date,
-    validate_info
-)
+from validation import (validate_birth_date, validate_gender, validate_image,
+                        validate_info, validate_name)
 
 
 class ProfileCreateRequestSchema(BaseModel):

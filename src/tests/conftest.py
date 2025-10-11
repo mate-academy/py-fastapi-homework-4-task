@@ -1,15 +1,12 @@
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import get_settings, get_accounts_email_notificator, get_s3_storage_client
-from database import (
-    reset_database,
-    get_db_contextmanager,
-    UserGroupEnum,
-    UserGroupModel
-)
+from config import (get_accounts_email_notificator, get_s3_storage_client,
+                    get_settings)
+from database import (UserGroupEnum, UserGroupModel, get_db_contextmanager,
+                      reset_database)
 from database.populate import CSVDatabaseSeeder
 from main import app
 from security.interfaces import JWTAuthManagerInterface

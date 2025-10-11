@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
+from io import BytesIO
 from unittest.mock import patch
 
 import pytest
-from io import BytesIO
 from PIL import Image
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from database import UserModel, UserProfileModel
 from exceptions import S3FileUploadError
