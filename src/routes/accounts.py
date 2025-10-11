@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +67,9 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
+        settings: BaseAppSettings = Depends(get_settings),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> UserRegistrationResponseSchema:
     """
@@ -78,6 +81,9 @@ async def register_user(
 
     Args:
         user_data (UserRegistrationRequestSchema): The registration details including email and password.
+        background_tasks (BackgroundTasks): Run background tasks after returning response.
+        settings (BaseAppSettings): The application settings,
+        email_notificator (EmailSenderInterface): Send different types of email notifications.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -120,6 +126,16 @@ async def register_user(
 
         await db.commit()
         await db.refresh(new_user)
+
+        activation_link = (f"http://{settings.API_DOMAIN}{settings.API_PREFIX}"
+                           f"/accounts/activate/?token={activation_token.token}")
+
+        background_tasks.add_task(
+            email_notificator.send_activation_email,
+            email=new_user.email,
+            activation_link=activation_link,
+        )
+
     except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
@@ -163,6 +179,9 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
+        settings: BaseAppSettings = Depends(get_settings),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -175,6 +194,9 @@ async def activate_account(
 
     Args:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
+        background_tasks (BackgroundTasks): Run background tasks after returning response.
+        settings (BaseAppSettings, optional): The application settings,
+        email_notificator (EmailSenderInterface): Send different types of email notifications.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -214,6 +236,14 @@ async def activate_account(
             detail="User account is already active."
         )
 
+    login_link = f"http://{settings.API_DOMAIN}{settings.API_PREFIX}/accounts/login/"
+
+    background_tasks.add_task(
+        email_notificator.send_activation_complete_email,
+        email=user.email,
+        login_link=login_link,
+    )
+
     user.is_active = True
     await db.delete(token_record)
     await db.commit()
@@ -233,6 +263,9 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
+        settings: BaseAppSettings = Depends(get_settings),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -243,6 +276,9 @@ async def request_password_reset_token(
 
     Args:
         data (PasswordResetRequestSchema): The request data containing the user's email.
+        background_tasks (BackgroundTasks): Run background tasks after returning response.
+        settings (BaseAppSettings, optional): The application settings,
+        email_notificator (EmailSenderInterface): Send different types of email notifications.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -262,6 +298,15 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+
+    reset_link = (f"http://{settings.API_DOMAIN}{settings.API_PREFIX}"
+                  f"/accounts/reset-password/complete/?token={reset_token.token}")
+
+    background_tasks.add_task(
+        email_notificator.send_password_reset_email,
+        email=user.email,
+        reset_link=reset_link,
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -313,6 +358,9 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
+        settings: BaseAppSettings = Depends(get_settings),
+        email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -324,6 +372,9 @@ async def reset_password(
     Args:
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
+        background_tasks (BackgroundTasks): Run background tasks after returning response.
+        settings (BaseAppSettings, optional): The application settings,
+        email_notificator (EmailSenderInterface): Send different types of email notifications.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -369,6 +420,15 @@ async def reset_password(
         user.password = data.password
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
+
+        login_link = f"http://{settings.API_DOMAIN}{settings.API_PREFIX}/accounts/login/"
+
+        background_tasks.add_task(
+            email_notificator.send_password_reset_complete_email,
+            email=user.email,
+            login_link=login_link,
+        )
+
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
