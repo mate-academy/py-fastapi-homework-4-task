@@ -19,9 +19,9 @@ class ProfileCreateSchema(BaseModel):
     info: str
     avatar: UploadFile | None
 
-    @field_validator("first_name", "last_name")
+    @field_validator("first_name")
     @classmethod
-    def validate_names(cls, value):
+    def validate_first_namec(cls, value):
         try:
             validate_name(value)
         except ValueError as e:
@@ -29,7 +29,24 @@ class ProfileCreateSchema(BaseModel):
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=[{
                     "type": "value_error",
-                    "loc": ["first_name" if "first_name" in value else "last_name"],
+                    "loc": ["first_name"],
+                    "msg": str(e),
+                    "input": value,
+                }],
+            )
+        return value.lower().strip()
+
+    @field_validator("last_name")
+    @classmethod
+    def validate_last_name(cls, value):
+        try:
+            validate_name(value)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=[{
+                    "type": "value_error",
+                    "loc": ["last_name"],
                     "msg": str(e),
                     "input": value,
                 }],

@@ -69,6 +69,7 @@ async def get_current_user(
 @router.post(
     "/users/{user_id}/profile/",
     status_code=status.HTTP_201_CREATED,
+    response_model=ProfileResponseSchema,
 )
 async def create_profile(
     user_id: int,
@@ -76,7 +77,7 @@ async def create_profile(
     current_user: Annotated[UserModel, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
-):
+) -> ProfileResponseSchema:
     user = await db.scalar(
         select(UserModel)
         .where(UserModel.id == user_id)
