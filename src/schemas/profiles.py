@@ -10,4 +10,19 @@ from validation import (
     validate_birth_date
 )
 
-# Write your code here
+class ProfileRequest(BaseModel):
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
+    avatar: UploadFile
+
+
+class ProfileResponse(BaseModel):
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
+    avatar_url: HttpUrl
