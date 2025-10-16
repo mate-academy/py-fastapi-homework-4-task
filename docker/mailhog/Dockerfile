@@ -1,20 +1,15 @@
-FROM debian:bookworm-slim
+# Use the official MailHog image instead of building from source
+FROM mailhog/mailhog:latest
 
-# Install necessary dependencies
-RUN apt update && apt install -y  \
-    golang-go \
-    wget \
-    dos2unix \
-    && apt clean
+# Install bash and dos2unix for script processing
+USER root
+RUN apk add --no-cache bash dos2unix
 
-# Install MailHog using Go
-RUN go install github.com/mailhog/MailHog@latest
-
-# Add Go's bin directory to the PATH to make MailHog executable globally
-ENV PATH="/root/go/bin:$PATH"
-
-# Copy the commands directory into the container
+# Copy the authentication setup script
 COPY commands/setup_mailhog_auth.sh /commands/setup_mailhog_auth.sh
 
-# Ensure all scripts in the commands directory have Unix-style line endings and are executable
+# Ensure the script has Unix-style line endings and is executable
 RUN dos2unix /commands/setup_mailhog_auth.sh && chmod +x /commands/setup_mailhog_auth.sh
+
+# Switch back to mailhog user for security
+USER mailhog
