@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
 from typing import cast
 
+from fastapi import BackgroundTasks
+from config.dependencies import get_accounts_email_notificator
+from notifications.interfaces import EmailSenderInterface
+
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
