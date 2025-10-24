@@ -162,5 +162,3 @@ async def create_user_profile(
         info=profile.info,
         avatar=avatar_url,
     )
-
-ть
