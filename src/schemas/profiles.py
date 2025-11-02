@@ -1,22 +1,15 @@
 from __future__ import annotations
+
 from datetime import date
+from pydantic import BaseModel, Field, field_validator
 
-
-from fastapi import UploadFile, Form, File, HTTPException
-from pydantic import BaseModel, field_validator, HttpUrl
-
+# Валідації з пакету validation (умова задачі)
 from validation import (
     validate_name,
     validate_image,
     validate_gender,
-    validate_birth_date
+    validate_birth_date,
 )
-
-# src/schemas/profiles.py
-
-
-from datetime import date
-from pydantic import BaseModel, Field, field_validator
 
 
 class ProfileCreateSchema(BaseModel):
@@ -29,7 +22,7 @@ class ProfileCreateSchema(BaseModel):
     @field_validator("first_name")
     @classmethod
     def _validate_first_name(cls, v: str) -> str:
-        validate_name(v)  # має кинути ValueError/ValidationError при невдачі
+        validate_name(v)
         return v
 
     @field_validator("last_name")
@@ -47,8 +40,7 @@ class ProfileCreateSchema(BaseModel):
     @field_validator("date_of_birth")
     @classmethod
     def _validate_birth_date(cls, v: date) -> date:
-        # має перевірити формат і >= 18 років
-        validate_birth_date(v)
+        validate_birth_date(v)  # має перевіряти вік >= 18
         return v
 
     @field_validator("info")
@@ -69,16 +61,21 @@ class ProfileResponseSchema(BaseModel):
     info: str
     avatar: str
 
-    class Config:
-        from_attributes = True  # для ORM mode
+    # Pydantic v2
+    model_config = {"from_attributes": True}
 
 
-# Хелпер для валідації зображення (UploadFile читаємо в роуті і прокидуємо сюди)
 def validate_avatar_bytes(filename: str, content_type: str | None, data: bytes) -> None:
     """
-    Використовуємо штатну валідацію з validation.validate_image:
-    - дозволені: jpg, jpeg, png
-    - розмір <= 1MB
+    Обгортка над validation.validate_image з сумісністю зі старими/новими сигнатурами.
+    Дозволені: JPG/JPEG/PNG; розмір <= 1MB.
     """
-    # many validators очікують filename+content_type+bytes (або subset) — тримаємо універсально
-    validate_image(filename, content_type, data, max_size_mb=1)
+    try:
+        # новіша сигнатура (з max_size_mb)
+        validate_image(filename, content_type, data, max_size_mb=1)
+        return
+    except TypeError:
+        # старіша сигнатура — перевіримо розмір самі
+        if len(data) > 1 * 1024 * 1024:
+            raise ValueError("Image size must be <= 1MB.")
+        validate_image(filename, content_type, data)

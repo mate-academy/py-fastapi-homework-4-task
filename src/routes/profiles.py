@@ -18,20 +18,18 @@ from fastapi import (
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# ВІДНОСНІ імпорти (щоб IDE не показувала Unresolved reference без PYTHONPATH)
-
+# ВІДНОСНІ імпорти (щоб PyCharm не підкреслював без PYTHONPATH)
 from ..config.dependencies import (
     get_db,
-    get_settings,
     get_jwt_auth_manager,
     get_s3_storage_client,
 )
-from ..config.settings import BaseAppSettings
+from ..config.settings import BaseAppSettings, get_settings
 from ..security.http import get_token
 from ..security.interfaces import JWTAuthManagerInterface
 from ..storages.interfaces import S3StorageInterface
 
-from ..database.models.accounts import UserModel, UserProfileModel
+from ..database.models.accounts import UserModel, UserProfileModel, GenderEnum
 
 from ..schemas.profiles import (
     ProfileCreateSchema,
@@ -49,7 +47,7 @@ router = APIRouter(prefix="/users", tags=["profiles"])
 )
 async def create_user_profile(
     user_id: int,
-    request: Request,  # ⬅ важливо: не може йти після параметрів з дефолтами
+    request: Request,  # важливо: до параметрів із дефолтами
     db: AsyncSession = Depends(get_db),
     settings: BaseAppSettings = Depends(get_settings),
     jwt_auth: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
@@ -59,7 +57,7 @@ async def create_user_profile(
     first_name: str = Form(...),
     last_name: str = Form(...),
     gender: str = Form(...),
-    date_of_birth: str = Form(...),  # валідатор у Pydantic перевірить формат/вік
+    date_of_birth: str = Form(...),  # Pydantic перевірить формат/вік
     info: str = Form(...),
     avatar: UploadFile = File(...),
 ):
@@ -72,20 +70,21 @@ async def create_user_profile(
     - 500: помилка завантаження аватара
     """
 
-    # 1) Перевірка токена з заголовка Authorization
-    token = get_token(request)  # кине 401 з потрібним detail при проблемах із заголовком
+    # 1) Перевірка токена з Authorization
+    token = get_token(request)
     try:
-        payload = jwt_auth.decode_access_token(token)  # кине при невалідному/простроченому токені
-    except Exception:
+        payload = jwt_auth.decode_access_token(token)
+    except Exception as e:
+        # За вимогою — повертаємо саме цей detail
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired.",
-        )
+        ) from e
 
-    # ID береться з claim "user_id" (не "sub")
-    uid_claim = payload.get("user_id")
+    # Підтримуємо і "user_id", і "sub" як запасний варіант
+    uid_claim = (payload or {}).get("user_id", (payload or {}).get("sub"))
     current_user_id = int(uid_claim) if isinstance(uid_claim, (int, str)) else None
-    current_user_group = payload.get("group")
+    current_user_group = (payload or {}).get("group")
 
     if current_user_id is None:
         raise HTTPException(
@@ -121,7 +120,7 @@ async def create_user_profile(
             detail="User already has a profile.",
         )
 
-    # 5) Валідація бізнес-даних (без файлу) — через Pydantic + validation.*
+    # 5) Валідація бізнес-даних (без файлу)
     create_schema = ProfileCreateSchema(
         first_name=first_name,
         last_name=last_name,
@@ -130,12 +129,11 @@ async def create_user_profile(
         info=info,
     )
 
-    # 6) Валідація файлу (розширення/тип/<=1MB)
+    # 6) Валідація файлу
     file_bytes = await avatar.read()
     try:
         validate_avatar_bytes(avatar.filename or "", avatar.content_type, file_bytes)
     except Exception as e:
-        # явний 422 згідно помилки валідації
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e),
@@ -152,38 +150,31 @@ async def create_user_profile(
     object_name = f"avatars/{user_id}_{uuid4().hex}{guessed_ext}"
 
     try:
-        # Duck-typing під різні інтерфейси сховища
+        # upload (спершу очікуваний фейком інтерфейс)
         if hasattr(s3_client, "upload_bytes"):
-            # очікувана сигнатура: upload_bytes(data, object_name, content_type)
             await s3_client.upload_bytes(file_bytes, object_name, avatar.content_type)
-        elif hasattr(s3_client, "put_object"):
-            # інколи метод називається put_object(data, key, content_type)
-            await s3_client.put_object(file_bytes, object_name, avatar.content_type)
         else:
-            raise RuntimeError("S3 client has no upload method")
+            # fallback
+            await s3_client.put_object(file_bytes, object_name, avatar.content_type)  # type: ignore[attr-defined]
 
+        # url (спершу очікуваний фейком інтерфейс)
         if hasattr(s3_client, "get_object_url"):
             avatar_url = s3_client.get_object_url(object_name)
-        elif hasattr(s3_client, "url_for"):
-            avatar_url = s3_client.url_for(object_name)
         else:
-            # fallback: будуємо URL з налаштувань, якщо є
-            base = getattr(settings, "S3_PUBLIC_ENDPOINT", None) or getattr(settings, "S3_STORAGE_ENDPOINT", None)
-            if not base:
-                raise RuntimeError("Cannot build avatar URL")
-            avatar_url = f"{base.rstrip('/')}/{object_name}"
+            # fallback
+            avatar_url = s3_client.url_for(object_name)  # type: ignore[attr-defined]
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload avatar. Please try again later.",
         )
 
-    # 8) Зберігаємо профіль (timezone-aware timestamps)
+    # 8) Зберігаємо профіль (gender → Enum, timezone-aware)
     now_utc = datetime.now(timezone.utc)
     profile = UserProfileModel(
-        first_name=create_schema.first_name.lower(),
-        last_name=create_schema.last_name.lower(),
-        gender=create_schema.gender,
+        first_name=create_schema.first_name,
+        last_name=create_schema.last_name,
+        gender=GenderEnum(create_schema.gender),
         date_of_birth=create_schema.date_of_birth,
         info=create_schema.info,
         avatar=object_name,  # у БД — ключ; у відповіді — повний URL
@@ -201,7 +192,7 @@ async def create_user_profile(
         user_id=profile.user_id,
         first_name=profile.first_name,
         last_name=profile.last_name,
-        gender=profile.gender,
+        gender=profile.gender.value if hasattr(profile.gender, "value") else profile.gender,
         date_of_birth=profile.date_of_birth,
         info=profile.info,
         avatar=avatar_url,

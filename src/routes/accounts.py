@@ -2,6 +2,10 @@ from datetime import datetime, timezone
 from typing import cast
 
 from fastapi import BackgroundTasks
+from notifications.interfaces import EmailSenderInterface
+from config.dependencies import get_accounts_email_notificator
+
+from fastapi import BackgroundTasks
 from config.dependencies import get_accounts_email_notificator
 from notifications.interfaces import EmailSenderInterface
 
