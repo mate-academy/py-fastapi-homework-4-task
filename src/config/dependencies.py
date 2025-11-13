@@ -1,14 +1,26 @@
 import os
+from functools import lru_cache
 
 from fastapi import Depends
 
-from config.settings import TestingSettings, Settings, BaseAppSettings
-from notifications import EmailSenderInterface, EmailSender
+from config.settings import (
+    TestingSettings,
+    Settings,
+    BaseAppSettings,
+)
+from notifications import (
+    EmailSenderInterface,
+    EmailSender,
+)
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
-from storages import S3StorageInterface, S3StorageClient
+from storages import (
+    S3StorageInterface,
+    S3StorageClient,
+)
 
 
+@lru_cache()
 def get_settings() -> BaseAppSettings:
     """
     Retrieve the application settings based on the current environment.
@@ -19,6 +31,11 @@ def get_settings() -> BaseAppSettings:
 
     Returns:
         BaseAppSettings: The settings instance appropriate for the current environment.
+
+    Note:
+        Using functools.lru_cache() ensures that the same settings instance is returned on
+        subsequent calls, improving performance and guaranteeing a single immutable instance
+        per process.
     """
     environment = os.getenv("ENVIRONMENT", "developing")
     if environment == "testing":
