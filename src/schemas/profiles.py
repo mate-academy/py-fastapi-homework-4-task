@@ -1,50 +1,43 @@
 from datetime import date
 from enum import Enum as PyEnum
 
-from fastapi import UploadFile, Form, File
 from pydantic import BaseModel, field_validator
 
 from validation import (
     validate_name,
-    validate_image,
     validate_gender,
     validate_birth_date,
 )
+from database.models.accounts import GenderEnum
 
 
 class ProfileRequestSchema(BaseModel):
-    first_name: str = Form(...)
-    last_name: str = Form(...)
-    gender: str = Form(...)
-    date_of_birth: date = Form(...)
-    info: str = Form(...)
-    avatar: UploadFile = File(...)
+    first_name: str
+    last_name: str
+    gender: GenderEnum
+    date_of_birth: date
+    info: str
 
     @field_validator("first_name", "last_name")
     def validate_names(cls, v: str) -> str:
-        name = validate_name(v)
-        return name.lower()
+        validate_name(v)
+        return v.lower()
 
     @field_validator("gender")
-    def validate_gender_field(cls, v: str) -> str:
-        gender = validate_gender(v)
-        if isinstance(gender, PyEnum):
-            return str(gender.value).lower()
-        return str(gender).lower()
+    def validate_gender_field(cls, v: GenderEnum) -> GenderEnum:
+        validate_gender(v)
+        return v
 
     @field_validator("date_of_birth")
     def validate_birth(cls, v: date) -> date:
-        return validate_birth_date(v)
+        validate_birth_date(v)
+        return v
 
     @field_validator("info")
     def validate_info(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("Info cannot be empty.")
         return v
-
-    @field_validator("avatar")
-    def validate_avatar(cls, v: UploadFile) -> UploadFile:
-        return validate_image(v)
 
 
 class ProfileResponseSchema(BaseModel):

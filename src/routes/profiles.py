@@ -1,24 +1,26 @@
 from datetime import date
 
 from fastapi import (
-    APIRouter, Depends, UploadFile, HTTPException, status, Request
+    APIRouter,
+    Depends,
+    UploadFile,
+    HTTPException,
+    status,
+    Request,
+    Form,
+    File,
 )
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from config import get_jwt_auth_manager, get_s3_storage_client
 from database import get_db, UserModel, UserProfileModel
+from database.models.accounts import UserGroupModel, UserGroupEnum
 from exceptions import BaseSecurityError
-from schemas.profiles import ProfileResponseSchema
+from schemas.profiles import ProfileRequestSchema, ProfileResponseSchema
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
-from validation import (
-    validate_name,
-    validate_image,
-    validate_gender,
-    validate_birth_date,
-)
+from validation import validate_image
 
 router = APIRouter()
 
@@ -28,9 +30,15 @@ router = APIRouter()
     response_model=ProfileResponseSchema,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_user_profile(  # noqa: C901
+async def create_user_profile(
     user_id: int,
     request: Request,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    gender: str = Form(...),
+    date_of_birth: date = Form(...),
+    info: str = Form(...),
+    avatar: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
@@ -53,74 +61,32 @@ async def create_user_profile(  # noqa: C901
     except BaseSecurityError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
-    form = await request.form()
-    first_name = form.get("first_name")
-    last_name = form.get("last_name")
-    gender = form.get("gender")
-    date_of_birth = form.get("date_of_birth")
-    info = form.get("info")
-    avatar: UploadFile = form.get("avatar")
-
-    if not all([first_name, last_name, gender, date_of_birth, avatar]):
-        raise HTTPException(status_code=422, detail="Missing required form fields.")
-
-    if info is None or not info.strip():
-        raise HTTPException(
-            status_code=422,
-            detail="Info field cannot be empty or contain only spaces.",
-        )
-
-    try:
-
-        validated_first_name = validate_name(first_name)
-        if validated_first_name is not None:
-            first_name = validated_first_name
-
-        validated_last_name = validate_name(last_name)
-        if validated_last_name is not None:
-            last_name = validated_last_name
-
-        validate_gender(gender)
-
-        try:
-            date_of_birth_obj = date.fromisoformat(date_of_birth)
-        except ValueError as e:
-
-            raise HTTPException(status_code=422, detail=str(e))
-        validate_birth_date(date_of_birth_obj)
-
-        validate_image(avatar)
-    except HTTPException:
-
-        raise
-    except Exception as e:
-
-        raise HTTPException(status_code=422, detail=str(e))
-
-    stmt_user = (
-        select(UserModel)
-        .options(selectinload(UserModel.group))
-        .filter_by(id=user_id)
-    )
+    stmt_user = select(UserModel).filter_by(id=user_id)
     result_user = await db.execute(stmt_user)
     target_user = result_user.scalars().first()
-    if not target_user:
-        raise HTTPException(status_code=404, detail="User not found.")
-    if not target_user.is_active:
-        raise HTTPException(status_code=401, detail="User not found or not active.")
 
-    stmt_token_user = (
-        select(UserModel)
-        .options(selectinload(UserModel.group))
-        .filter_by(id=token_user_id)
-    )
+    if not target_user or not target_user.is_active:
+        raise HTTPException(
+            status_code=401,
+            detail="User not found or not active.",
+        )
+
+    stmt_token_user = select(UserModel).filter_by(id=token_user_id)
     result_token_user = await db.execute(stmt_token_user)
     token_user = result_token_user.scalars().first()
 
     if not token_user or not token_user.is_active:
         raise HTTPException(status_code=401, detail="User not found or not active.")
 
-    is_admin = bool(token_user.group and token_user.group.name == "admin")
+    group_name = None
+    if getattr(token_user, "group_id", None) is not None:
+        stmt_group = select(UserGroupModel.name).where(
+            UserGroupModel.id == token_user.group_id
+        )
+        group_result = await db.execute(stmt_group)
+        group_name = group_result.scalar_one_or_none()
+
+    is_admin = group_name == UserGroupEnum.ADMIN
 
     if token_user_id != user_id and not is_admin:
         raise HTTPException(
@@ -130,19 +96,30 @@ async def create_user_profile(  # noqa: C901
 
     stmt_profile = select(UserProfileModel).filter_by(user_id=user_id)
     result_profile = await db.execute(stmt_profile)
-    existing_profile = result_profile.scalars().first()
-    if existing_profile:
+    if result_profile.scalars().first():
         raise HTTPException(status_code=400, detail="User already has a profile.")
 
-    try:
+    profile_data = ProfileRequestSchema(
+        first_name=first_name,
+        last_name=last_name,
+        gender=gender,
+        date_of_birth=date_of_birth,
+        info=info,
+    )
 
-        ext = (avatar.filename or "").split(".")[-1] if avatar.filename else "jpg"
+    try:
+        validate_image(avatar)
+
+        ext = (avatar.filename or "").split(".")[-1]
         avatar_key = f"avatars/{user_id}_avatar.{ext}"
+
         file_bytes = await avatar.read()
         await s3_client.upload_file(avatar_key, file_bytes)
         avatar_url = await s3_client.get_file_url(avatar_key)
-    except Exception:
 
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(
             status_code=500,
             detail="Failed to upload avatar. Please try again later.",
@@ -150,11 +127,11 @@ async def create_user_profile(  # noqa: C901
 
     profile = UserProfileModel(
         user_id=user_id,
-        first_name=first_name,
-        last_name=last_name,
-        gender=gender,
-        date_of_birth=date_of_birth_obj,
-        info=info.strip(),
+        first_name=profile_data.first_name,
+        last_name=profile_data.last_name,
+        gender=profile_data.gender,
+        date_of_birth=profile_data.date_of_birth,
+        info=profile_data.info,
         avatar=avatar_url,
     )
 
@@ -162,13 +139,4 @@ async def create_user_profile(  # noqa: C901
     await db.commit()
     await db.refresh(profile)
 
-    return ProfileResponseSchema(
-        id=profile.id,
-        user_id=profile.user_id,
-        first_name=profile.first_name,
-        last_name=profile.last_name,
-        gender=str(profile.gender) if hasattr(profile.gender, "value") else profile.gender,
-        date_of_birth=profile.date_of_birth,
-        info=profile.info,
-        avatar=profile.avatar,
-    )
+    return profile
