@@ -14,8 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_jwt_auth_manager, get_s3_storage_client
-from database import get_db, UserModel, UserProfileModel
-from database.models.accounts import UserGroupModel, UserGroupEnum
+from database import get_db, UserModel, UserProfileModel, UserGroupEnum
 from exceptions import BaseSecurityError
 from schemas.profiles import ProfileRequestSchema, ProfileResponseSchema
 from security.interfaces import JWTAuthManagerInterface
@@ -25,25 +24,36 @@ from validation import validate_image
 router = APIRouter()
 
 
+async def get_profile_form_data(
+        first_name: str = Form(...),
+        last_name: str = Form(...),
+        gender: str = Form(...),
+        date_of_birth: date = Form(...),
+        info: str = Form(...),
+) -> ProfileRequestSchema:
+    return ProfileRequestSchema(
+        first_name=first_name,
+        last_name=last_name,
+        gender=gender,
+        date_of_birth=date_of_birth,
+        info=info,
+    )
+
+
 @router.post(
     "/users/{user_id}/profile/",
     response_model=ProfileResponseSchema,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user_profile(
-    user_id: int,
-    request: Request,
-    first_name: str = Form(...),
-    last_name: str = Form(...),
-    gender: str = Form(...),
-    date_of_birth: date = Form(...),
-    info: str = Form(...),
-    avatar: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-    s3_client: S3StorageInterface = Depends(get_s3_storage_client),
+        user_id: int,
+        request: Request,
+        profile_data: ProfileRequestSchema = Depends(get_profile_form_data),
+        avatar: UploadFile = File(...),
+        db: AsyncSession = Depends(get_db),
+        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+        s3_client: S3StorageInterface = Depends(get_s3_storage_client),
 ):
-
     authorization = request.headers.get("Authorization")
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header is missing")
@@ -78,15 +88,7 @@ async def create_user_profile(
     if not token_user or not token_user.is_active:
         raise HTTPException(status_code=401, detail="User not found or not active.")
 
-    group_name = None
-    if getattr(token_user, "group_id", None) is not None:
-        stmt_group = select(UserGroupModel.name).where(
-            UserGroupModel.id == token_user.group_id
-        )
-        group_result = await db.execute(stmt_group)
-        group_name = group_result.scalar_one_or_none()
-
-    is_admin = group_name == UserGroupEnum.ADMIN
+    is_admin = token_user.has_group(UserGroupEnum.ADMIN)
 
     if token_user_id != user_id and not is_admin:
         raise HTTPException(
@@ -99,15 +101,8 @@ async def create_user_profile(
     if result_profile.scalars().first():
         raise HTTPException(status_code=400, detail="User already has a profile.")
 
-    profile_data = ProfileRequestSchema(
-        first_name=first_name,
-        last_name=last_name,
-        gender=gender,
-        date_of_birth=date_of_birth,
-        info=info,
-    )
-
     try:
+
         validate_image(avatar)
 
         ext = (avatar.filename or "").split(".")[-1]
@@ -115,9 +110,9 @@ async def create_user_profile(
 
         file_bytes = await avatar.read()
         await s3_client.upload_file(avatar_key, file_bytes)
-        avatar_url = await s3_client.get_file_url(avatar_key)
 
     except HTTPException:
+
         raise
     except Exception:
         raise HTTPException(
@@ -132,11 +127,27 @@ async def create_user_profile(
         gender=profile_data.gender,
         date_of_birth=profile_data.date_of_birth,
         info=profile_data.info,
-        avatar=avatar_url,
+        avatar=avatar_key,
     )
 
     db.add(profile)
     await db.commit()
     await db.refresh(profile)
 
-    return profile
+    try:
+        avatar_url = await s3_client.get_file_url(profile.avatar)
+    except Exception:
+        avatar_url = profile.avatar
+
+    response = ProfileResponseSchema(
+        id=profile.id,
+        first_name=profile.first_name,
+        last_name=profile.last_name,
+        gender=profile.gender,
+        date_of_birth=profile.date_of_birth,
+        info=profile.info,
+        avatar=avatar_url,
+        user_id=profile.user_id,
+    )
+
+    return response
