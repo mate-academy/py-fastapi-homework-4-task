@@ -19,31 +19,35 @@ class ProfileRequestSchema(BaseModel):
     gender: str
     birth_date: str
     info: str
-    avatar: UploadFile = File(...),
+    avatar: UploadFile = File(...)
 
     @field_validator("first_name", "last_name")
     @classmethod
     def _validate_name(cls, v: str):
-        return validate_name(v)
+        validate_name(v)
+        return v
 
     @field_validator("gender")
     @classmethod
     def _validate_gender(cls, v: str):
-        return validate_gender(v)
+        validate_gender(v)
+        return v
 
     @field_validator("birth_date")
     @classmethod
     def _validate_birth_date(cls, v: date):
-        return validate_birth_date(v)
+        validate_birth_date(v)
+        return v
 
     @field_validator("info")
     @classmethod
     def _validate_info(cls, v: str):
-        return validate_info(v)
+        validate_info(v)
+        return v
 
     @field_validator("avatar")
     @classmethod
-    def _validate_image(cls, v: str | None):
+    def _validate_image(cls, v: UploadFile):
         if v is None:
             return v
         return validate_image(v)

@@ -1,5 +1,6 @@
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.params import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,15 +14,20 @@ from database import get_db
 from src.schemas.profiles import ProfileResponseSchema, ProfileRequestSchema
 from src.security.interfaces import JWTAuthManagerInterface
 import boto3
+import os
 
 router = APIRouter()
 
-s3 = boto3.client(
-    "s3",
-    aws_access_key_id="YOUR_AWS_ACCESS_KEY",
-    aws_secret_access_key="YOUR_AWS_SECRET_KEY",
-    region_name="YOUR_REGION"
-)
+
+def get_s3_storage_client():
+    return boto3.client(
+        "s3",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        region_name=os.getenv("AWS_REGION"),
+    )
+
+
 BUCKET_NAME = "your-bucket"
 
 
@@ -32,11 +38,16 @@ BUCKET_NAME = "your-bucket"
 )
 async def create_user_profile(
         user_id: int,
-        data: ProfileRequestSchema,
+        first_name: Annotated[str] = Form(...),
+        last_name: Annotated[str] = Form(...),
+        gender: Annotated[str] = Form(...),
+        birth_date: Annotated[str] = Form(...),
+        info: Annotated[str] = Form(...),
+        avatar: UploadFile = File(...),
         token: str = Depends(get_token),
         db: AsyncSession = Depends(get_db),
         jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-        file: UploadFile = File(...),
+        s3=Depends(get_s3_storage_client),
 ):
     try:
         decoded_token = jwt_manager.decode_access_token(token)
@@ -84,14 +95,19 @@ async def create_user_profile(
             detail="You don't have permission to edit this profile."
         )
 
-    if not data.avatar.content_type.startswith("image/"):
+    if not avatar.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File is not an image")
 
     filename = f"user_{user_id}.jpg"
-    contents = await file.read()
+    contents = await avatar.read()
 
     try:
-        s3.put_object(Bucket=BUCKET_NAME, Key=filename, Body=contents, ContentType=file.content_type)
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=filename,
+            Body=contents,
+            ContentType=avatar.content_type
+        )
         avatar_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{filename}"
     except Exception:
         raise HTTPException(
@@ -101,12 +117,12 @@ async def create_user_profile(
 
     new_profile = UserProfileModel(
         user_id=user_id,
-        first_name=data.first_name,
-        last_name=data.last_name,
+        first_name=first_name,
+        last_name=last_name,
         avatar=avatar_url,
-        gender=data.gender,
-        date_of_birth=data.date_of_birth,
-        info=data.info,
+        gender=gender,
+        birth_date=birth_date,
+        info=info,
     )
 
     db.add(new_profile)
