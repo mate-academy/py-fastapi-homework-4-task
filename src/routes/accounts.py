@@ -120,7 +120,7 @@ async def register_user(
         activation_token = ActivationTokenModel(user_id=new_user.id)
         db.add(activation_token)
         await db.flush()
-        reset_link = f"/http://127.0.0.1/activate?token={activation_token.token}"
+        reset_link = f"http://127.0.0.1/activate?token={activation_token.token}"
         await db.commit()
         background_tasks.add_task(email_sender.send_activation_email, str(new_user.email), reset_link)
         await db.refresh(new_user)
@@ -272,7 +272,7 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.flush()
-    reset_link = f"/http://127.0.0.1/reset-password/complete?token={reset_token.token}"
+    reset_link = f"http://127.0.0.1/reset-password/complete?token={reset_token.token}"
     await db.commit()
     background_tasks.add_task(email_sender.send_password_reset_email, str(user.email), reset_link)
     return MessageResponseSchema(
@@ -385,7 +385,7 @@ async def reset_password(
         await db.flush()
         login_link = "http://127.0.0.1/accounts/login/"
         await db.commit()
-        background_tasks.add_task(email_sender.send_password_reset_email, str(user.email), login_link)
+        background_tasks.add_task(email_sender.send_password_reset_complete_email, str(user.email), login_link)
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(

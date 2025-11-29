@@ -25,13 +25,18 @@ s3 = boto3.client(
 BUCKET_NAME = "your-bucket"
 
 
-@router.post("/users/{user_id}/profile/", response_model=ProfileResponseSchema)
+@router.post(
+    "/users/{user_id}/profile/",
+    response_model=ProfileResponseSchema,
+    status_code=201
+)
 async def create_user_profile(
         user_id: int,
         data: ProfileRequestSchema,
         token: str = Depends(get_token),
         db: AsyncSession = Depends(get_db),
-        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+        file: UploadFile = File(...),
 ):
     try:
         decoded_token = jwt_manager.decode_access_token(token)
@@ -73,7 +78,7 @@ async def create_user_profile(
             detail="User already has a profile."
         )
 
-    if token_user_id != user_id and (requester.group in {"user", "moderator"}):
+    if token_user_id != user_id and (requester.group.name in {"user", "moderator"}):
         raise HTTPException(
             status_code=403,
             detail="You don't have permission to edit this profile."
@@ -83,10 +88,10 @@ async def create_user_profile(
         raise HTTPException(status_code=400, detail="File is not an image")
 
     filename = f"user_{user_id}.jpg"
-    contents = await data.avatar.read()
+    contents = await file.read()
 
     try:
-        s3.put_object(Bucket=BUCKET_NAME, Key=filename, Body=contents, ContentType=data.avatar.content_type)
+        s3.put_object(Bucket=BUCKET_NAME, Key=filename, Body=contents, ContentType=file.content_type)
         avatar_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{filename}"
     except Exception:
         raise HTTPException(
@@ -94,7 +99,6 @@ async def create_user_profile(
             detail="Failed to upload avatar. Please try again later."
         )
 
-    target_user.avatar_url = avatar_url
     new_profile = UserProfileModel(
         user_id=user_id,
         first_name=data.first_name,

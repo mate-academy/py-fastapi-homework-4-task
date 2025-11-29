@@ -8,16 +8,17 @@ from src.validation.profile import (
     validate_name,
     validate_image,
     validate_gender,
-    validate_birth_date
+    validate_birth_date,
+    validate_info
 )
 
 
 class ProfileRequestSchema(BaseModel):
-    first_name: Optional[str]
-    last_name: Optional[str]
-    gender: Optional[str]
-    birth_date: Optional[date]
-    info: Optional[str]
+    first_name: str
+    last_name: str
+    gender: str
+    birth_date: str
+    info: str
     avatar: UploadFile = File(...),
 
     @field_validator("first_name", "last_name")
@@ -34,6 +35,11 @@ class ProfileRequestSchema(BaseModel):
     @classmethod
     def _validate_birth_date(cls, v: date):
         return validate_birth_date(v)
+
+    @field_validator("info")
+    @classmethod
+    def _validate_info(cls, v: str):
+        return validate_info(v)
 
     @field_validator("avatar")
     @classmethod
