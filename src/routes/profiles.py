@@ -82,7 +82,6 @@ async def create_user_profile(
     if token_user_id is None:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
-    # 2. Отримуємо поточного користувача (хто робить запит)
     result = await db.execute(select(UserModel).where(UserModel.id == token_user_id))
     current_user = result.scalars().first()
 
@@ -92,7 +91,6 @@ async def create_user_profile(
             detail="User not found or not active."
         )
 
-    # 3. Перевірка прав
     is_admin = (current_user.group_id == 3)
     if not is_admin and current_user.id != user_id:
         raise HTTPException(
@@ -100,17 +98,14 @@ async def create_user_profile(
             detail="You don't have permission to edit this profile."
         )
 
-    # 4. Перевірка ЦІЛЬОВОГО користувача (вимога рев'ю)
     target_user = current_user
     if user_id != current_user.id:
         res = await db.execute(select(UserModel).where(UserModel.id == user_id))
         target_user_db = res.scalars().first()
-        # Згідно з рев'ю, краще повернути 401 або 404. Логічно 404, але текст має бути чітким.
         if not target_user_db or not target_user_db.is_active:
             raise HTTPException(status_code=401, detail="User not found or not active.")
         target_user = target_user_db
 
-    # 5. Перевірка дублікатів
     query = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
     result = await db.execute(query)
     existing_profile = result.scalars().first()
@@ -121,12 +116,10 @@ async def create_user_profile(
             detail="User already has a profile."
         )
 
-    # 6. Завантаження файлу
     try:
         file_extension = profile_data.avatar.filename.split('.')[-1]
         file_path = f"avatars/{user_id}_avatar.{file_extension}"
 
-        # Використовуємо позиційний виклик
         upload_result = s3_client.upload_file(
             profile_data.avatar.file,
             file_path
@@ -135,7 +128,6 @@ async def create_user_profile(
         if inspect.iscoroutine(upload_result):
             await upload_result
 
-        # ВИПРАВЛЕННЯ: S3 метод може не повертати URL, тому використовуємо ключ
         avatar_url = file_path
 
     except Exception as e:
@@ -145,7 +137,6 @@ async def create_user_profile(
             detail="Failed to upload avatar. Please try again later."
         )
 
-    # 7. Мапінг та Збереження
     gender_db_value = profile_data.gender.upper()
     if gender_db_value not in ["MAN", "WOMAN"]:
         gender_db_value = "OTHER"
@@ -172,14 +163,13 @@ async def create_user_profile(
             detail=f"Database error: {str(e)}"
         )
 
-    # 8. Відправка Email
     try:
         if target_user.email:
             background_tasks.add_task(
                 email_sender.send_email,
                 to=target_user.email,
                 subject="Profile Created",
-                template_name="activation_complete.html",  # Використовуємо наявний шаблон
+                template_name="activation_complete.html",
                 context={
                     "first_name": new_profile.first_name,
                     "last_name": new_profile.last_name

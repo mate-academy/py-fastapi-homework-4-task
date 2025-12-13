@@ -5,7 +5,6 @@ from typing import Optional
 from fastapi import UploadFile
 from pydantic import BaseModel, field_validator, ConfigDict
 
-# Імпортуємо функції валідації напряму з модуля, щоб уникнути циклічних імпортів
 from validation.profile import validate_english_letters, validate_age, validate_info, validate_image
 
 

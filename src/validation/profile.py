@@ -2,9 +2,7 @@ import re
 from datetime import date
 from fastapi import UploadFile
 
-# Налаштування для файлів
 MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB
-# GIF відсутній, щоб тести на формат працювали коректно
 ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png"]
 
 
