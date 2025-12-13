@@ -62,7 +62,6 @@ async def get_current_user(
     return user
 
 
-
 def get_accounts_email_notificator(
         settings: BaseAppSettings = Depends(get_settings)
 ) -> EmailSenderInterface:
