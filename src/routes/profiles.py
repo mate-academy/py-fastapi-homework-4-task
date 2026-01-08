@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 from src.config.dependencies import get_jwt_auth_manager, get_s3_storage_client
 from src.database import get_db
 from src.database import UserModel, UserProfileModel, UserGroupEnum
-from src.exceptions import TokenExpiredError
+from src.exceptions import TokenExpiredError, BaseS3Error
 from src.security.http import get_token
 from src.security.interfaces import JWTAuthManagerInterface
 from src.storages.interfaces import S3StorageInterface
@@ -119,7 +119,7 @@ async def create_user_profile(
 
     try:
         await s3.upload_file(avatar_key, content)
-    except Exception:
+    except BaseS3Error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload avatar. Please try again later."
