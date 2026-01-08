@@ -3,8 +3,8 @@ from typing import Optional
 
 from jose import jwt, JWTError, ExpiredSignatureError
 
-from exceptions import TokenExpiredError, InvalidTokenError
-from security.interfaces import JWTAuthManagerInterface
+from src.exceptions import TokenExpiredError, InvalidTokenError
+from src.security.interfaces import JWTAuthManagerInterface
 
 
 class JWTAuthManager(JWTAuthManagerInterface):
@@ -55,7 +55,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
         Decode and validate an access token, returning the token's data.
         """
         try:
-            return jwt.decode(token, self._secret_key_access, algorithms=[self._algorithm])
+            return jwt.decode(token, self._secret_key_access, algorithms=[self._algorithm], options={"verify_exp": True})
         except ExpiredSignatureError:
             raise TokenExpiredError
         except JWTError:
@@ -68,7 +68,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
         try:
             return jwt.decode(token, self._secret_key_refresh, algorithms=[self._algorithm])
         except ExpiredSignatureError:
-            raise TokenExpiredError
+            raise TokenExpiredError("Token has Expired")
         except JWTError:
             raise InvalidTokenError
 
