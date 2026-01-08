@@ -43,7 +43,7 @@ async def create_user_profile(
 
     try:
         decoded = jwt_manager.decode_access_token(token)
-    except Exception:
+    except TokenExpiredError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.")
 
     token_user_id: int = decoded["user_id"]
