@@ -11,7 +11,7 @@ from schemas.profiles import ProfileResponse, ProfileCreate
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
 
-router = APIRouter(prefix="/profiles", tags=["profiles"])
+router = APIRouter()
 
 
 async def get_current_user(
@@ -107,4 +107,4 @@ async def create_profile(
     db.add(new_profile)
     await db.commit()
     await db.refresh(new_profile)
-    return ProfileResponse.model_config(new_profile)
+    return ProfileResponse.model_validate(new_profile)
