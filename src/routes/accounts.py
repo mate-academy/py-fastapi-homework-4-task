@@ -123,7 +123,7 @@ async def register_user(
         await db.commit()
         await db.refresh(new_user)
 
-        activation_link = f"http://localhost/accounts/activate/{activation_token.id}/"
+        activation_link = f"http://localhost/accounts/activate/{activation_token}/"
 
         background_tasks.add_task(
             email_sender.send_registration_email,
@@ -285,8 +285,9 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+    await db.refresh(reset_token)
 
-    reset_link = "http://localhost/accounts/reset-password/"
+    reset_link = f"http://localhost/accounts/reset-password/?token={reset_token.token}"
 
     background_tasks.add_task(
         email_sender.send_password_reset_email,
@@ -403,7 +404,7 @@ async def reset_password(
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
 
-        completion_link = "http://localhost/accounts/reset-password/"
+        completion_link = "http://localhost/accounts/login/"
 
         background_tasks.add_task(
             email_sender.send_password_reset_complete_email,
