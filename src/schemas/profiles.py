@@ -30,12 +30,18 @@ class ProfileRequestSchema(BaseModel):
         return validate_gender(value)
 
     @field_validator("date_of_birth")
-    def validate_date_of_birth(cls, value: str) -> date:
+    def validate_date_of_birth(cls, value: date) -> date:
         return validate_birth_date(value)
 
     @field_validator("avatar")
-    def validate_avatar(cls, value: str) -> bytes:
+    def validate_avatar(cls, value: Optional[bytes]) -> bytes:
         return validate_image(value)
+
+    @field_validator("info")
+    def validate_info(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Info cannot be empty or only spaces.")
+        return value
 
 
 class ProfileResponseSchema(BaseModel):

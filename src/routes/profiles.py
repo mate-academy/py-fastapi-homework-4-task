@@ -1,5 +1,4 @@
-from cProfile import Profile
-from datetime import date
+from database.models.accounts import UserProfileModel, UserModel
 
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy import select
@@ -45,7 +44,14 @@ async def create_profile(
     if payload["role"] != "admin" and payload["user_id"] != user_id:
         raise HTTPException(status_code=403, detail="You don't have permission to edit this profile.")
 
-    stmt = select(Profile).where(Profile.user_id == user_id)
+    stmt = select(UserModel).where(UserModel.user_id == user_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=404,
+                            detail="User not found or not active.")
+
+    stmt = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
     result = await db.execute(stmt)
     existing_profile = result.scalar_one_or_none()
     if existing_profile:
@@ -62,7 +68,7 @@ async def create_profile(
         except Exception:
             raise HTTPException(status_code=500, detail="Failed to upload avatar. Please try again later.")
 
-    new_profile = ProfileModel(
+    new_profile = UserProfileModel(
         user_id=user_id,
         first_name=profile_data.first_name,
         last_name=profile_data.last_name,

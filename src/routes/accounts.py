@@ -406,7 +406,7 @@ async def reset_password(
         completion_link = "http://localhost/accounts/reset-password/"
 
         background_tasks.add_task(
-            email_sender.send_password_reset_email,
+            email_sender.send_password_reset_complete_email,
             str(user.email),
             completion_link
         )
