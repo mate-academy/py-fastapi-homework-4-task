@@ -12,7 +12,17 @@ from validation import (
 
 
 class ProfileResponseSchema(BaseModel):
-    pass
+    id: int
+    user_id: int
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
+    avatar: HttpUrl
+
+    class Config:
+        from_attributes = True
 
 
 class ProfileRequestSchema(BaseModel):
@@ -21,7 +31,7 @@ class ProfileRequestSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
-    avatar: str
+    avatar: UploadFile
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -42,3 +52,10 @@ class ProfileRequestSchema(BaseModel):
     @classmethod
     def validate_avatar_user(cls, value):
         return validate_image(value)
+
+    @field_validator("info")
+    @classmethod
+    def validate_info_user(cls, value):
+        if not value or not value.strip():
+            raise ValueError("Info cannot be empty or consist only of spaces.")
+        return value
