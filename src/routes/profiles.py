@@ -7,10 +7,12 @@ from sqlalchemy.orm import joinedload
 
 from src.database import get_db, UserModel, UserProfileModel
 from src.storages.interfaces import S3StorageInterface
-from src.config.dependencies import get_s3_storage_client
+from src.config.dependencies import get_s3_storage_client, get_jwt_auth_manager
 from src.schemas.profiles import ProfileResponseSchema, ProfileRequestSchema
 from src.validation import validate_image
-from src.security.http import get_current_user
+from src.security.http import get_token
+from src.security.interfaces import JWTAuthManagerInterface
+from src.exceptions import BaseSecurityError
 
 router = APIRouter()
 
@@ -30,9 +32,19 @@ async def create_user_profile(
         avatar: UploadFile = File(...),
         db: AsyncSession = Depends(get_db),
         s3_client: S3StorageInterface = Depends(get_s3_storage_client),
-        current_user: UserModel = Depends(get_current_user)
+        token: str = Depends(get_token),
+        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
 ):
-    if current_user.id != user_id:
+    try:
+        payload = jwt_manager.decode_access_token(token)
+        token_user_id = payload.get("user_id")
+    except BaseSecurityError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired."
+        )
+
+    if token_user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile."
