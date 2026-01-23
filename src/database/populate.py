@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from tqdm import tqdm
 
-from config import get_settings
-from database import (
+from src.config import get_settings
+from src.database import (
     CountryModel,
     GenreModel,
     ActorModel,
@@ -19,7 +19,11 @@ from database import (
     MoviesLanguagesModel,
     MovieModel, UserGroupModel, UserGroupEnum
 )
-from database import get_db_contextmanager
+from src.database import get_db_contextmanager
+from src.database import Base
+from src.database.session_postgresql import postgresql_engine
+from dotenv import load_dotenv
+load_dotenv()
 
 CHUNK_SIZE = 1000
 
@@ -202,11 +206,18 @@ class CSVDatabaseSeeder:
             if lang.strip()
         }
 
+        print("Creating countries")
         country_map = await self._get_or_create_bulk(CountryModel, countries, 'code')
+        print("done countries")
+        print("Creating genres")
         genre_map = await self._get_or_create_bulk(GenreModel, list(genres), 'name')
+        print("done genres")
+        print("Creating actors")
         actor_map = await self._get_or_create_bulk(ActorModel, list(actors), 'name')
+        print("done actors")
+        print("Creating languages")
         language_map = await self._get_or_create_bulk(LanguageModel, list(languages), 'name')
-
+        print("done languages")
         return country_map, genre_map, actor_map, language_map
 
     def _prepare_movies_data(
@@ -295,29 +306,32 @@ class CSVDatabaseSeeder:
             if self._db_session.in_transaction():
                 print("Rolling back existing transaction.")
                 await self._db_session.rollback()
+            print("Seeding database.")
 
             await self._seed_user_groups()
 
+            print("CSV...")
             data = self._preprocess_csv()
-
+            print("Preparing data...")
             country_map, genre_map, actor_map, language_map = await self._prepare_reference_data(data)
-
+            print("Inserting data...")
             movies_data = self._prepare_movies_data(data, country_map)
-
+            print("Inserting data...")
             result = await self._db_session.execute(
                 insert(MovieModel).returning(MovieModel.id),
                 movies_data
             )
             movie_ids = list(result.scalars().all())
-
+            print("Inserting data...")
             movie_genres_data, movie_actors_data, movie_languages_data = self._prepare_associations(
                 data, movie_ids, genre_map, actor_map, language_map
             )
+            print("Inserting data...")
 
             await self._bulk_insert(MoviesGenresModel, movie_genres_data)
             await self._bulk_insert(ActorsMoviesModel, movie_actors_data)
             await self._bulk_insert(MoviesLanguagesModel, movie_languages_data)
-
+            print("Inserting data...")
             await self._db_session.commit()
             print("Seeding completed.")
 

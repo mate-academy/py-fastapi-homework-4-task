@@ -8,7 +8,7 @@ services:
       - "5432:5432"
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-      - postgres_theater_data:/var/lib/postgresql/data/
+      - postgres_theater_data:/var/lib/postgresql
     networks:
       - theater_network
     healthcheck:
@@ -52,7 +52,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./src:/usr/src/fastapi
+      - ./src:/usr/src/fastapi/src
     networks:
       - theater_network
 
@@ -64,7 +64,7 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./src:/usr/src/fastapi
+      - ./src:/usr/src/fastapi/src
     env_file:
       - .env
     environment:
