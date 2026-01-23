@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from typing import cast, Any
 
 from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
-from pyexpat.errors import messages
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession

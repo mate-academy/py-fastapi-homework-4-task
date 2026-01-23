@@ -20,8 +20,6 @@ from src.database import (
     MovieModel, UserGroupModel, UserGroupEnum
 )
 from src.database import get_db_contextmanager
-from src.database import Base
-from src.database.session_postgresql import postgresql_engine
 from dotenv import load_dotenv
 load_dotenv()
 

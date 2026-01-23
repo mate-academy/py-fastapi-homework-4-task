@@ -93,7 +93,7 @@ async def create_user_profile(
         select(UserModel)
         .where(
             UserModel.id == user_id,
-            UserModel.is_active == True # noqa
+            UserModel.is_active == True  # noqa
         )
     )
     user = user_query.scalar_one_or_none()
@@ -140,6 +140,7 @@ async def create_user_profile(
     try:
         await db.commit()
         await db.refresh(new_profile)
+        new_profile.avatar = await s3_client.get_file_url(new_profile.avatar)
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
