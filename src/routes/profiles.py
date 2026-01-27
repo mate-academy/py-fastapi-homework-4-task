@@ -19,6 +19,284 @@ from validation import validate_image
 router = APIRouter()
 
 
+async def _validate_and_decode_token(
+        request: Request,
+        jwt_manager: JWTAuthManagerInterface
+) -> int:
+    """
+    Extract and validate Bearer token, return authenticated user ID.
+
+    Raises:
+        HTTPException: 401 if token is missing, invalid, or expired
+    """
+    try:
+        token = get_token(request)
+    except HTTPException:
+        raise
+
+    try:
+        decoded_token = jwt_manager.decode_access_token(token)
+        return decoded_token.get("user_id")
+    except BaseSecurityError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(error)
+        )
+
+
+async def _check_user_permissions(
+        db: AsyncSession,
+        authenticated_user_id: int,
+        target_user_id: int
+) -> tuple[bool, UserModel]:
+    """
+    Check if authenticated user has permission to create profile for target user.
+
+    Returns:
+        tuple: (needs_permission_check, target_user)
+
+    Raises:
+        HTTPException: 401 if user not found, 403 if no permission
+    """
+    needs_permission_check = (authenticated_user_id != target_user_id)
+
+    if needs_permission_check:
+        # Load authenticated user with group to check permissions
+        stmt = select(UserModel).options(
+            selectinload(UserModel.group)
+        ).where(UserModel.id == authenticated_user_id)
+        result = await db.execute(stmt)
+        authenticated_user = result.scalars().first()
+
+        if not authenticated_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or not active."
+            )
+
+        # Check if user has elevated permissions
+        allowed_groups = [UserGroupEnum.ADMIN.value, UserGroupEnum.MODERATOR.value]
+        if authenticated_user.group.name not in allowed_groups:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to edit this profile."
+            )
+
+        # For admin/moderator creating another user's profile, check target user exists
+        stmt = select(UserModel).where(UserModel.id == target_user_id)
+        result = await db.execute(stmt)
+        target_user = result.scalars().first()
+
+        if not target_user or not target_user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or not active."
+            )
+
+        return needs_permission_check, target_user
+
+    return needs_permission_check, None
+
+
+async def _check_existing_profile(
+        db: AsyncSession,
+        user_id: int
+) -> None:
+    """
+    Check if user already has a profile.
+
+    Raises:
+        HTTPException: 400 if profile already exists
+    """
+    stmt = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
+    result = await db.execute(stmt)
+    existing_profile = result.scalars().first()
+
+    if existing_profile:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already has a profile."
+        )
+
+
+async def _parse_and_validate_form_data(
+        request: Request
+) -> tuple[ProfileCreateSchema, object]:
+    """
+    Parse form data and validate text fields.
+
+    Returns:
+        tuple: (validated_profile_data, avatar_file)
+
+    Raises:
+        HTTPException: 422 if validation fails
+    """
+    form_data = await request.form()
+
+    # Extract form fields
+    first_name = form_data.get("first_name")
+    last_name = form_data.get("last_name")
+    gender = form_data.get("gender")
+    date_of_birth_str = form_data.get("date_of_birth")
+    info = form_data.get("info")
+    avatar = form_data.get("avatar")
+
+    # Convert date_of_birth from string to date
+    try:
+        if isinstance(date_of_birth_str, str):
+            date_of_birth = date.fromisoformat(date_of_birth_str)
+        else:
+            date_of_birth = date_of_birth_str
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid date format. Expected YYYY-MM-DD."
+        )
+
+    # Validate text fields using ProfileCreateSchema
+    try:
+        profile_data = ProfileCreateSchema(
+            first_name=first_name,
+            last_name=last_name,
+            gender=gender,
+            date_of_birth=date_of_birth,
+            info=info
+        )
+    except ValidationError as e:
+        # Extract the first validation error message
+        error_messages = []
+        for error in e.errors():
+            field = " -> ".join(str(loc) for loc in error["loc"])
+            msg = error.get("msg", "Validation error")
+            error_messages.append(f"{field}: {msg}")
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=error_messages[0] if error_messages else "Validation error"
+        )
+
+    # Validate the avatar image
+    try:
+        validate_image(avatar)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+
+    return profile_data, avatar
+
+
+async def _verify_user_exists(
+        db: AsyncSession,
+        user_id: int
+) -> None:
+    """
+    Verify that user exists and is active.
+
+    Raises:
+        HTTPException: 401 if user not found or not active
+    """
+    stmt = select(UserModel).where(UserModel.id == user_id)
+    result = await db.execute(stmt)
+    target_user = result.scalars().first()
+
+    if not target_user or not target_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or not active."
+        )
+
+
+async def _upload_avatar_to_s3(
+        s3_client: S3StorageInterface,
+        user_id: int,
+        avatar: object
+) -> str:
+    """
+    Upload avatar to S3 storage and return the key.
+
+    Returns:
+        str: S3 key for the uploaded avatar
+
+    Raises:
+        HTTPException: 500 if upload fails
+    """
+    try:
+        # Generate a unique filename for the avatar
+        file_extension = "jpg"
+        if "." in avatar.filename:
+            file_extension = avatar.filename.split(".")[-1]
+        avatar_filename = f"{user_id}_avatar.{file_extension}"
+        avatar_key = f"avatars/{avatar_filename}"
+
+        # Upload to S3
+        avatar_content = await avatar.read()
+        await s3_client.upload_file(
+            file_name=avatar_key,
+            file_data=avatar_content
+        )
+        return avatar_key
+    except S3FileUploadError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload avatar. Please try again later."
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload avatar. Please try again later."
+        )
+
+
+async def _create_profile_in_db(
+        db: AsyncSession,
+        s3_client: S3StorageInterface,
+        user_id: int,
+        profile_data: ProfileCreateSchema,
+        avatar_key: str
+) -> UserProfileModel:
+    """
+    Create profile in database with rollback on failure.
+
+    Returns:
+        UserProfileModel: The created profile
+
+    Raises:
+        HTTPException: 500 if profile creation fails
+    """
+    try:
+        new_profile = UserProfileModel(
+            user_id=user_id,
+            first_name=profile_data.first_name.lower(),
+            last_name=profile_data.last_name.lower(),
+            gender=profile_data.gender,
+            date_of_birth=profile_data.date_of_birth,
+            info=profile_data.info,
+            avatar=avatar_key  # Store the S3 key, not the full URL
+        )
+
+        db.add(new_profile)
+        await db.commit()
+        await db.refresh(new_profile)
+
+        return new_profile
+
+    except SQLAlchemyError:
+        await db.rollback()
+        # If profile creation fails, try to clean up the uploaded avatar
+        try:
+            await s3_client.delete_file(avatar_key)
+        except Exception:
+            # If cleanup fails, log it but don't raise another error
+            pass
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create profile. Please try again later."
+        )
+
+
 @router.post(
     "/users/{user_id}/profile/",
     response_model=ProfileResponseSchema,
@@ -150,196 +428,31 @@ async def create_profile(
             - 500 if avatar upload fails or profile creation fails
     """
     # Step 1: Extract and validate the Bearer token
-    try:
-        token = get_token(request)
-    except HTTPException:
-        raise
+    authenticated_user_id = await _validate_and_decode_token(request, jwt_manager)
 
-    # Step 2: Decode the token and extract user_id
-    try:
-        decoded_token = jwt_manager.decode_access_token(token)
-        authenticated_user_id = decoded_token.get("user_id")
-    except BaseSecurityError as error:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(error)
-        )
+    # Step 2: Check permissions and get target user if needed
+    needs_permission_check, _ = await _check_user_permissions(
+        db, authenticated_user_id, user_id
+    )
 
-    # Step 3: Check if trying to create profile for another user
-    # If yes, we need to verify admin/moderator permissions
-    needs_permission_check = (authenticated_user_id != user_id)
-
+    # Step 3: Check if profile already exists (for admin/moderator flow)
     if needs_permission_check:
-        # Load user with group to check permissions
-        stmt = select(UserModel).options(selectinload(UserModel.group)).where(UserModel.id == authenticated_user_id)
-        result = await db.execute(stmt)
-        authenticated_user = result.scalars().first()
+        await _check_existing_profile(db, user_id)
 
-        if not authenticated_user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or not active."
-            )
+    # Step 4: Parse and validate form data
+    profile_data, avatar = await _parse_and_validate_form_data(request)
 
-        # Check if user has elevated permissions
-        if authenticated_user.group.name not in [UserGroupEnum.ADMIN.value, UserGroupEnum.MODERATOR.value]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to edit this profile."
-            )
-
-        # For admin/moderator creating another user's profile, check target user exists
-        stmt = select(UserModel).where(UserModel.id == user_id)
-        result = await db.execute(stmt)
-        target_user = result.scalars().first()
-
-        if not target_user or not target_user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or not active."
-            )
-    # If user is creating their own profile, we'll check existence later (after validation)
-
-    # Step 4: Check if the user already has a profile (only if we already verified user exists)
-    if needs_permission_check:
-        stmt = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
-        result = await db.execute(stmt)
-        existing_profile = result.scalars().first()
-
-        if existing_profile:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User already has a profile."
-            )
-
-    # Step 5: Parse form data manually AFTER authentication checks
-    form_data = await request.form()
-
-    # Extract form fields
-    first_name = form_data.get("first_name")
-    last_name = form_data.get("last_name")
-    gender = form_data.get("gender")
-    date_of_birth_str = form_data.get("date_of_birth")
-    info = form_data.get("info")
-    avatar = form_data.get("avatar")
-
-    # Convert date_of_birth from string to date
-    try:
-        if isinstance(date_of_birth_str, str):
-            date_of_birth = date.fromisoformat(date_of_birth_str)
-        else:
-            date_of_birth = date_of_birth_str
-    except (ValueError, TypeError):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid date format. Expected YYYY-MM-DD."
-        )
-
-    # Step 6: Validate text fields using ProfileCreateSchema
-    try:
-        profile_data = ProfileCreateSchema(
-            first_name=first_name,
-            last_name=last_name,
-            gender=gender,
-            date_of_birth=date_of_birth,
-            info=info
-        )
-    except ValidationError as e:
-        # Extract the first validation error message
-        error_messages = []
-        for error in e.errors():
-            field = " -> ".join(str(loc) for loc in error["loc"])
-            msg = error.get("msg", "Validation error")
-            error_messages.append(f"{field}: {msg}")
-
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=error_messages[0] if error_messages else "Validation error"
-        )
-
-    # Step 7: Validate the avatar image
-    try:
-        validate_image(avatar)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
-        )
-
-    # Step 8: NOW check if user creating own profile exists (after validation)
+    # Step 5: Verify user exists (for self-profile flow)
     if not needs_permission_check:
-        stmt = select(UserModel).where(UserModel.id == user_id)
-        result = await db.execute(stmt)
-        target_user = result.scalars().first()
+        await _verify_user_exists(db, user_id)
+        await _check_existing_profile(db, user_id)
 
-        if not target_user or not target_user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or not active."
-            )
+    # Step 6: Upload avatar to S3
+    avatar_key = await _upload_avatar_to_s3(s3_client, user_id, avatar)
 
-        # Also check if profile already exists
-        stmt = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
-        result = await db.execute(stmt)
-        existing_profile = result.scalars().first()
+    # Step 7: Create profile in database
+    new_profile = await _create_profile_in_db(
+        db, s3_client, user_id, profile_data, avatar_key
+    )
 
-        if existing_profile:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User already has a profile."
-            )
-
-    # Step 9: Upload avatar to S3 storage
-    try:
-        # Generate a unique filename for the avatar
-        file_extension = avatar.filename.split(".")[-1] if "." in avatar.filename else "jpg"
-        avatar_filename = f"{user_id}_avatar.{file_extension}"
-        avatar_key = f"avatars/{avatar_filename}"
-
-        # Upload to S3
-        avatar_content = await avatar.read()
-        await s3_client.upload_file(
-            file_name=avatar_key,
-            file_data=avatar_content
-        )
-    except S3FileUploadError as error:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload avatar. Please try again later."
-        )
-    except Exception as error:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload avatar. Please try again later."
-        )
-
-    # Step 10: Create the profile in the database
-    try:
-        new_profile = UserProfileModel(
-            user_id=user_id,
-            first_name=profile_data.first_name.lower(),
-            last_name=profile_data.last_name.lower(),
-            gender=profile_data.gender,
-            date_of_birth=profile_data.date_of_birth,
-            info=profile_data.info,
-            avatar=avatar_key  # Store the S3 key, not the full URL
-        )
-
-        db.add(new_profile)
-        await db.commit()
-        await db.refresh(new_profile)
-
-        return ProfileResponseSchema.model_validate(new_profile)
-
-    except SQLAlchemyError as error:
-        await db.rollback()
-        # If profile creation fails, we should try to clean up the uploaded avatar
-        try:
-            await s3_client.delete_file(avatar_key)
-        except:
-            pass  # If cleanup fails, log it but don't raise another error
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create profile. Please try again later."
-        )
+    return ProfileResponseSchema.model_validate(new_profile)
