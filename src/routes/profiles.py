@@ -260,7 +260,7 @@ async def _create_profile_in_db(
     Create profile in database with rollback on failure.
 
     Returns:
-        UserProfileModel: The created profile
+        UserProfileModel: The created profile with avatar as full URL
 
     Raises:
         HTTPException: 500 if profile creation fails
@@ -279,6 +279,10 @@ async def _create_profile_in_db(
         db.add(new_profile)
         await db.commit()
         await db.refresh(new_profile)
+
+        # Convert S3 key to full URL before returning
+        avatar_url = await s3_client.get_file_url(avatar_key)
+        new_profile.avatar = avatar_url
 
         return new_profile
 
