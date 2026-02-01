@@ -74,7 +74,7 @@ async def get_authorization(
 
     user_id = data.get("user_id", None)
     if not user_id:
-        raise HTTPException(status_code=404, detail="User not found or not active.")
+        raise HTTPException(status_code=401, detail="User not found or not active.")
 
     query = select(
         database.UserModel

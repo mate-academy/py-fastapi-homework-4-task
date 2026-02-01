@@ -126,7 +126,7 @@ async def register_user(
         background_tasks.add_task(
             smtp.send_activation_email,
             str(user_data.email),
-            f"{request.client.host}/activate/",
+            f"{request.url.scheme}://{request.client.host}/activate/",
         )
         await db.commit()
         await db.refresh(new_user)
@@ -236,7 +236,7 @@ async def activate_account(
     background_tasks.add_task(
         smtp.send_activation_complete_email,
         user.email,
-        f"{request.client.host}/login/"
+        f"{request.url.scheme}://{request.client.host}/login/"
     )
     return MessageResponseSchema(message="User account activated successfully.")
 
@@ -291,7 +291,7 @@ async def request_password_reset_token(
     background_tasks.add_task(
         smtp.send_password_reset_email,
         user.email,
-        f"{request.client.host}/reset-password/complete/",
+        f"{request.url.scheme}://{request.client.host}/reset-password/complete/",
     )
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -414,7 +414,7 @@ async def reset_password(
     background_tasks.add_task(
         smtp.send_password_reset_complete_email,
         user.email,
-        f"{request.client.host}/login/",
+        f"{request.url.scheme}://{request.client.host}/login/",
     )
     return MessageResponseSchema(message="Password reset successfully.")
 
