@@ -1,10 +1,9 @@
 from datetime import date
-from typing import Optional
 
-from fastapi import UploadFile, Form, File, HTTPException
-from pydantic import BaseModel, field_validator, HttpUrl, ValidationError
+from fastapi import UploadFile
+from pydantic import BaseModel, field_validator
 
-from src.validation import (
+from validation import (
     validate_name,
     validate_image,
     validate_gender,
@@ -46,7 +45,7 @@ class ProfileCreateSchema(BaseModel):
 
     @field_validator("avatar")
     @staticmethod
-    def avatar_validator(value: str) -> UploadFile:
+    def avatar_validator(value: UploadFile) -> UploadFile:
         validate_image(value)
         return value
 
