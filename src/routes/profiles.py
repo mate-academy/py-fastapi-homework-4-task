@@ -68,7 +68,7 @@ async def get_authorization(
     try:
         data = jwt_manager.decode_access_token(token)
     except InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid Authorization header format. Expected 'Bearer <token>")
+        raise HTTPException(status_code=401, detail="Invalid Authorization header format. Expected 'Bearer <token>'")
     except TokenExpiredError:
         raise HTTPException(status_code=401, detail="Token has expired.")
 
@@ -130,11 +130,12 @@ async def create_profile(
     db.add(profile)
     await db.commit()
     await db.refresh(profile)
+    avatar_url = await s3_client.get_file_url(file_name=file_name)
     return schemas.ProfileResponseSchema(
         id=profile.id,
         first_name=profile.first_name,
         last_name=profile.last_name,
-        avatar=profile.avatar,
+        avatar=avatar_url,
         gender=profile.gender,
         date_of_birth=profile.date_of_birth,
         info=profile.info,
