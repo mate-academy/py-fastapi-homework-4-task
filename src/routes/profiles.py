@@ -14,7 +14,6 @@ from schemas.profiles import ProfileCreateScheme, ProfileResponseSchema
 from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
-from validation import validate_image
 
 router = APIRouter()
 
@@ -32,13 +31,7 @@ async def create_profile(
         db: Annotated[AsyncSession, Depends(get_db)],
         s3_client: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
 ) -> ProfileResponseSchema:
-    try:
-        validate_image(profile_data.avatar)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
-        )
+
 
     content = await profile_data.avatar.read()
     try:
