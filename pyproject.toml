@@ -6,7 +6,7 @@ authors = ["Yurii Okal <yurii.okal@mate.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-fastapi = "^0.115.6"
+fastapi = "^0.128.0"
 sqlalchemy = "^2.0.36"
 pytest = "^8.3.4"
 pydantic-settings = "^2.7.0"
@@ -34,6 +34,8 @@ asyncpg = "^0.30.0"
 aiosqlite = "^0.21.0"
 aioboto3 = "^13.4.0"
 pytest-asyncio = "^0.25.3"
+pydantic = "^2.12.5"
+greenlet = "^3.3.1"
 
 
 [build-system]
