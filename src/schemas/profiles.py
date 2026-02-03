@@ -3,7 +3,6 @@ from datetime import date
 from fastapi import UploadFile, Form, File, HTTPException
 from pydantic import BaseModel, field_validator, HttpUrl
 
-from database.models.accounts import GenderEnum
 from validation import (
     validate_name,
     validate_image,
@@ -48,11 +47,11 @@ class ProfileCreateScheme(BaseModel):
                 "Info field cannot be empty or contain only spaces.")
         return value
 
-    # @field_validator("avatar")
-    # @classmethod
-    # def validate_avatar_file(cls, file: UploadFile) -> UploadFile:
-    #     validate_image(file)
-    #     return file
+    @field_validator("avatar")
+    @classmethod
+    def validate_avatar_file(cls, file: UploadFile) -> UploadFile:
+        validate_image(file)
+        return file
 
 
 class ProfileResponseSchema(BaseModel):
@@ -63,4 +62,4 @@ class ProfileResponseSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
-    avatar: str
+    avatar: HttpUrl
