@@ -288,8 +288,6 @@ class CSVDatabaseSeeder:
     async def seed(self) -> None:
         """
         Main method to seed the database with movie data from the CSV.
-        It pre-processes the CSV, prepares reference data (countries, genres, actors, languages),
-        inserts all movies, then inserts many-to-many relationships (genres, actors, languages).
         """
         try:
             if self._db_session.in_transaction():
@@ -302,13 +300,14 @@ class CSVDatabaseSeeder:
 
             country_map, genre_map, actor_map, language_map = await self._prepare_reference_data(data)
 
-            movies_data = self._prepare_movies_data(data, country_map)
+            movies_data_dicts = self._prepare_movies_data(data, country_map)
 
-            result = await self._db_session.execute(
-                insert(MovieModel).returning(MovieModel.id),
-                movies_data
-            )
-            movie_ids = list(result.scalars().all())
+            # --- Заміна bulk insert + RETURNING на ORM add_all + flush ---
+            movies_instances = [MovieModel(**movie_dict) for movie_dict in movies_data_dicts]
+            self._db_session.add_all(movies_instances)
+            await self._db_session.flush()  # присвоїться id для кожного movie
+
+            movie_ids = [movie.id for movie in movies_instances]
 
             movie_genres_data, movie_actors_data, movie_languages_data = self._prepare_associations(
                 data, movie_ids, genre_map, actor_map, language_map

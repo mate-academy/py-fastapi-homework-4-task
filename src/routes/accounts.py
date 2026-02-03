@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
-from typing import cast
+from typing import cast, Annotated  # <- додано Annotated
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,27 +67,13 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: Annotated[
+            EmailSenderInterface,
+            Depends(get_accounts_email_notificator)
+        ],
         db: AsyncSession = Depends(get_db),
 ) -> UserRegistrationResponseSchema:
-    """
-    Endpoint for user registration.
-
-    Registers a new user, hashes their password, and assigns them to the default user group.
-    If a user with the same email already exists, an HTTP 409 error is raised.
-    In case of any unexpected issues during the creation process, an HTTP 500 error is returned.
-
-    Args:
-        user_data (UserRegistrationRequestSchema): The registration details including email and password.
-        db (AsyncSession): The asynchronous database session.
-
-    Returns:
-        UserRegistrationResponseSchema: The newly created user's details.
-
-    Raises:
-        HTTPException:
-            - 409 Conflict if a user with the same email exists.
-            - 500 Internal Server Error if an error occurs during user creation.
-    """
     stmt = select(UserModel).where(UserModel.email == user_data.email)
     result = await db.execute(stmt)
     existing_user = result.scalars().first()
@@ -126,8 +112,16 @@ async def register_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during user creation."
         ) from e
-    else:
-        return UserRegistrationResponseSchema.model_validate(new_user)
+
+    # Відправка email асинхронно через BackgroundTasks
+    activation_link = f"http://127.0.0.1/accounts/activate/?token={activation_token.token}"
+    background_tasks.add_task(
+        email_sender.send_activation_email,
+        str(new_user.email),
+        activation_link
+    )
+
+    return UserRegistrationResponseSchema.model_validate(new_user)
 
 
 @router.post(
@@ -145,15 +139,11 @@ async def register_user(
                     "examples": {
                         "invalid_token": {
                             "summary": "Invalid Token",
-                            "value": {
-                                "detail": "Invalid or expired activation token."
-                            }
+                            "value": {"detail": "Invalid or expired activation token."}
                         },
                         "already_active": {
                             "summary": "Account Already Active",
-                            "value": {
-                                "detail": "User account is already active."
-                            }
+                            "value": {"detail": "User account is already active."}
                         },
                     }
                 }
@@ -163,28 +153,13 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: Annotated[
+            EmailSenderInterface,
+            Depends(get_accounts_email_notificator)
+        ],
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
-    """
-    Endpoint to activate a user's account.
-
-    This endpoint verifies the activation token for a user by checking that the token record exists
-    and that it has not expired. If the token is valid and the user's account is not already active,
-    the user's account is activated and the activation token is deleted. If the token is invalid, expired,
-    or if the account is already active, an HTTP 400 error is raised.
-
-    Args:
-        activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
-        db (AsyncSession): The asynchronous database session.
-
-    Returns:
-        MessageResponseSchema: A response message confirming successful activation.
-
-    Raises:
-        HTTPException:
-            - 400 Bad Request if the activation token is invalid or expired.
-            - 400 Bad Request if the user account is already active.
-    """
     stmt = (
         select(ActivationTokenModel)
         .options(joinedload(ActivationTokenModel.user))
@@ -218,6 +193,14 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
+    # Email після активації
+    login_link = "http://127.0.0.1/accounts/login/"
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        str(user.email),
+        login_link
+    )
+
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -225,29 +208,18 @@ async def activate_account(
     "/password-reset/request/",
     response_model=MessageResponseSchema,
     summary="Request Password Reset Token",
-    description=(
-            "Allows a user to request a password reset token. If the user exists and is active, "
-            "a new token will be generated and any existing tokens will be invalidated."
-    ),
+    description="Allows a user to request a password reset token.",
     status_code=status.HTTP_200_OK,
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: Annotated[
+            EmailSenderInterface,
+            Depends(get_accounts_email_notificator)
+        ],
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
-    """
-    Endpoint to request a password reset token.
-
-    If the user exists and is active, invalidates any existing password reset tokens and generates a new one.
-    Always responds with a success message to avoid leaking user information.
-
-    Args:
-        data (PasswordResetRequestSchema): The request data containing the user's email.
-        db (AsyncSession): The asynchronous database session.
-
-    Returns:
-        MessageResponseSchema: A success message indicating that instructions will be sent.
-    """
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
@@ -262,6 +234,13 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+
+    reset_link = f"http://127.0.0.1/accounts/reset-password/complete/?token={reset_token.token}"
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        str(user.email),
+        reset_link
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -285,15 +264,11 @@ async def request_password_reset_token(
                     "examples": {
                         "invalid_email_or_token": {
                             "summary": "Invalid Email or Token",
-                            "value": {
-                                "detail": "Invalid email or token."
-                            }
+                            "value": {"detail": "Invalid email or token."}
                         },
                         "expired_token": {
                             "summary": "Expired Token",
-                            "value": {
-                                "detail": "Invalid email or token."
-                            }
+                            "value": {"detail": "Invalid email or token."}
                         }
                     }
                 }
@@ -303,9 +278,7 @@ async def request_password_reset_token(
             "description": "Internal Server Error - An error occurred while resetting the password.",
             "content": {
                 "application/json": {
-                    "example": {
-                        "detail": "An error occurred while resetting the password."
-                    }
+                    "example": {"detail": "An error occurred while resetting the password."}
                 }
             },
         },
@@ -313,27 +286,13 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: Annotated[
+            EmailSenderInterface,
+            Depends(get_accounts_email_notificator)
+        ],
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
-    """
-    Endpoint for resetting a user's password.
-
-    Validates the token and updates the user's password if the token is valid and not expired.
-    Deletes the token after a successful password reset.
-
-    Args:
-        data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
-         token, and new password.
-        db (AsyncSession): The asynchronous database session.
-
-    Returns:
-        MessageResponseSchema: A response message indicating successful password reset.
-
-    Raises:
-        HTTPException:
-            - 400 Bad Request if the email or token is invalid, or the token has expired.
-            - 500 Internal Server Error if an error occurs during the password reset process.
-    """
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
@@ -369,6 +328,15 @@ async def reset_password(
         user.password = data.password
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
+
+        # Email після успішного скидання пароля
+        login_link = "http://127.0.0.1/accounts/login/"
+        background_tasks.add_task(
+            email_sender.send_password_reset_complete_email,
+            str(user.email),
+            login_link
+        )
+
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
