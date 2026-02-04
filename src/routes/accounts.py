@@ -93,7 +93,7 @@ async def register_user(
             - 409 Conflict if a user with the same email exists.
             - 500 Internal Server Error if an error occurs during user creation.
     """
-    stmt = select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
+    stmt = select(UserModel).where(UserModel.email == user_data.email)
     result = await db.execute(stmt)
     existing_user = result.scalars().first()
     if existing_user:
