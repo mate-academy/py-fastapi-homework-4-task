@@ -1,9 +1,17 @@
 import os
+from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette import status
 
 from config.settings import TestingSettings, Settings, BaseAppSettings
+from database import UserModel
+from database.session_postgresql import get_postgresql_db as get_db
+from exceptions import InvalidTokenError, TokenExpiredError, BaseSecurityError
 from notifications import EmailSenderInterface, EmailSender
+from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface, S3StorageClient
@@ -103,3 +111,28 @@ def get_s3_storage_client(
         secret_key=settings.S3_STORAGE_SECRET_KEY,
         bucket_name=settings.S3_BUCKET_NAME
     )
+
+
+async def get_user(
+        token: Annotated[str, Depends(get_token)],
+        jwt_manager: Annotated[
+            JWTAuthManagerInterface, Depends(get_jwt_auth_manager)
+        ],
+        db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserModel:
+    try:
+        payload = jwt_manager.decode_access_token(token)
+        token_user_id = payload.get("user_id")
+    except BaseSecurityError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        )
+    user = await db.get(UserModel, token_user_id)
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or not active."
+        )
+
+    return user
