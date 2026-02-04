@@ -1,8 +1,8 @@
 import json
 from datetime import date
-from typing import Optional
+from typing import Optional, Any
 
-from fastapi import Form, HTTPException, status
+from fastapi import Form, HTTPException, status, File, UploadFile
 from pydantic import BaseModel, field_validator, ValidationError
 
 from validation import (
@@ -35,6 +35,7 @@ class ProfileCreateSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
+    avatar: Any
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -68,18 +69,27 @@ class ProfileCreateSchema(BaseModel):
             last_name: str = Form(...),
             gender: str = Form(...),
             date_of_birth: date = Form(...),
-            info: str = Form(...)
+            info: str = Form(...),
+            avatar: UploadFile = File(...)
     ):
         try:
-            return cls(
+            instance = cls(
                 first_name=first_name,
                 last_name=last_name,
                 gender=gender,
                 date_of_birth=date_of_birth,
-                info=info
+                info=info,
+                avatar=avatar
             )
+            validate_image(avatar)
+            return instance
         except ValidationError as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=json.loads(e.json())
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(e)
             )

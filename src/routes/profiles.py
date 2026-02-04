@@ -27,7 +27,6 @@ router = APIRouter()
 async def create_profile(
         user_id: int,
         profile_data: ProfileCreateSchema = Depends(ProfileCreateSchema.as_form),
-        avatar: UploadFile = File(...),
         db: AsyncSession = Depends(get_db),
         token: str = Depends(get_token),
         jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
@@ -88,18 +87,13 @@ async def create_profile(
 
     # 5. Avatar upload to s3 storage
     try:
-        validate_image(avatar)
+        avatar = profile_data.avatar
         ext = avatar.filename.split(".")[-1]
         object_key = f"avatars/{user_id}_avatar.{ext}"
 
         content = await avatar.read()
         await s3_client.upload_file(object_key, content)
         avatar_url = await s3_client.get_file_url(object_key)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
-        )
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
