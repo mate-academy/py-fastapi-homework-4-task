@@ -54,3 +54,14 @@ class ProfileCreateSchema(BaseModel):
         validate_image(value)
 
         return value
+
+
+class ProfileResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
+    avatar: UploadFile
