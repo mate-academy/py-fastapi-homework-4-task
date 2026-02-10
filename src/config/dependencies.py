@@ -1,14 +1,9 @@
 import os
-from typing import Annotated
 
-from fastapi import Depends, status, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
 
 from config.settings import TestingSettings, Settings, BaseAppSettings
-from database import UserModel, get_db
-from exceptions import TokenExpiredError, InvalidTokenError
 from notifications import EmailSenderInterface, EmailSender
-from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface, S3StorageClient
@@ -110,30 +105,3 @@ def get_s3_storage_client(
         secret_key=settings.S3_STORAGE_SECRET_KEY,
         bucket_name=settings.S3_BUCKET_NAME,
     )
-
-
-async def get_user(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    access_token: Annotated[str, get_token],
-    jwt: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
-) -> UserModel:
-    """Get a user"""
-    try:
-        decoded_token = jwt.decode_access_token(access_token)
-    except TokenExpiredError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
-        )
-    except InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Authorization header format. Expected 'Bearer <token>'",
-        )
-    user_id = decoded_token.get("sub")
-    user = await db.get(UserModel, user_id)
-    if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or not active.",
-        )
-    return user
