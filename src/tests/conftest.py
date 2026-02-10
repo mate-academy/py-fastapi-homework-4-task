@@ -8,7 +8,8 @@ from database import (
     reset_database,
     get_db_contextmanager,
     UserGroupEnum,
-    UserGroupModel
+    UserGroupModel,
+    UserModel
 )
 from database.populate import CSVDatabaseSeeder
 from main import app
