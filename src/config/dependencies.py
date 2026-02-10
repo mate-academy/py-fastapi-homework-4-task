@@ -131,7 +131,7 @@ async def get_user(
         )
     user_id = decoded_token.get("sub")
     user = await db.get(UserModel, user_id)
-    if user is None:
+    if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or not active.",
