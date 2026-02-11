@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 from typing import cast, Annotated
 
-from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks, requests
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+
+from urllib.parse import quote_plus
 
 from config import (
     get_jwt_auth_manager,
@@ -134,7 +136,10 @@ async def register_user(
             detail="An error occurred during user creation.",
         ) from e
     else:
-        activation_link = "http://127.0.0.1/accounts/activate/"
+        activation_link = (
+            f"http://127.0.0.1/accounts/activate/?email="
+            f"{quote_plus(new_user.email)}&token={quote_plus(activation_token.token)}"
+        )
 
         background_tasks.add_task(
             email_sender.send_activation_email,
@@ -299,7 +304,10 @@ async def request_password_reset_token(
     db.add(reset_token)
     await db.commit()
 
-    password_reset_complete_link = "http://127.0.0.1/accounts/reset-password/complete/"
+    password_reset_complete_link = (
+        f"http://127.0.0.1/accounts/reset-password/complete/token?="
+        f"{quote_plus(reset_token.token)}"
+    )
 
     background_tasks.add_task(
         email_sender.send_password_reset_email,

@@ -32,6 +32,11 @@ async def create_user_profile(
             detail="You don't have permission to edit this profile.",
         )
     target_user = await fetch_user_by_id(db, user_id=target_user_id)
+    if target_user is None or not target_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or not active.",
+        )
 
     if target_user.profile:
         raise HTTPException(
@@ -40,9 +45,10 @@ async def create_user_profile(
         )
 
     contents = await profile_data.avatar.read()
-    filename = f"avatars/{target_user_id}_avatar.jpg"
+    filename = f"avatars/{target_user_id}_{profile_data.avatar.filename}"
     try:
         await s3_client.upload_file(filename, contents)
+        s3_url = await s3_client.get_file_url(filename)
     except BaseS3Error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -57,4 +63,6 @@ async def create_user_profile(
     await db.commit()
     await db.refresh(new_profile)
 
-    return new_profile
+    return ProfileResponseSchema(
+        **profile_data.model_dump(exclude={"avatar"}), avatar=s3_url
+    )

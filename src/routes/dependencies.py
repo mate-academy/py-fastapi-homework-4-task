@@ -18,7 +18,8 @@ async def fetch_user_by_id(db: AsyncSession, user_id: int) -> UserModel:
         .where(UserModel.id == user_id)
         .options(selectinload(UserModel.group), selectinload(UserModel.profile))
     )
-    return await db.scalar(stmt)
+    result = await db.execute(stmt)
+    return result.scalars().first()
 
 
 async def get_user(
@@ -39,6 +40,11 @@ async def get_user(
             detail="Invalid Authorization header format. Expected 'Bearer <token>'",
         )
     user_id = decoded_token.get("user_id")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Authorization header format. Expected 'Bearer <token>'",
+        )
     user = await fetch_user_by_id(db, user_id)
     if user is None or not user.is_active:
         raise HTTPException(
