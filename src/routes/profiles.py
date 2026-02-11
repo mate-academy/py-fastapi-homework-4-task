@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, status, Depends, HTTPException, Form
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,7 +56,9 @@ async def create_user_profile(
         )
 
     new_profile = UserProfileModel(
-        **profile_data.model_dump(exclude={"avatar"}), avatar=filename
+        **profile_data.model_dump(exclude={"avatar"}),
+        avatar=filename,
+        user_id=user_id,
     )
     new_profile.user_id = target_user_id
     db.add(new_profile)
@@ -64,5 +66,12 @@ async def create_user_profile(
     await db.refresh(new_profile)
 
     return ProfileResponseSchema(
-        **profile_data.model_dump(exclude={"avatar"}), avatar=s3_url
+        id=new_profile.id,
+        user_id=new_profile.user_id,
+        first_name=new_profile.first_name,
+        last_name=new_profile.last_name,
+        gender=new_profile.gender,
+        date_of_birth=new_profile.date_of_birth,
+        info=new_profile.info,
+        avatar=s3_url,
     )
