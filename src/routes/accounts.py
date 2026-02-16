@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import cast
 
 from fastapi import APIRouter, Depends, status, HTTPException
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, and_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -33,101 +33,11 @@ from schemas import (
 )
 from security.interfaces import JWTAuthManagerInterface
 
+from fastapi import BackgroundTasks
+
+from utils.generate_token import generate_token
+
 router = APIRouter()
-
-
-@router.post(
-    "/register/",
-    response_model=UserRegistrationResponseSchema,
-    summary="User Registration",
-    description="Register a new user with an email and password.",
-    status_code=status.HTTP_201_CREATED,
-    responses={
-        409: {
-            "description": "Conflict - User with this email already exists.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "A user with this email test@example.com already exists."
-                    }
-                }
-            },
-        },
-        500: {
-            "description": "Internal Server Error - An error occurred during user creation.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "An error occurred during user creation."
-                    }
-                }
-            },
-        },
-    }
-)
-async def register_user(
-        user_data: UserRegistrationRequestSchema,
-        db: AsyncSession = Depends(get_db),
-) -> UserRegistrationResponseSchema:
-    """
-    Endpoint for user registration.
-
-    Registers a new user, hashes their password, and assigns them to the default user group.
-    If a user with the same email already exists, an HTTP 409 error is raised.
-    In case of any unexpected issues during the creation process, an HTTP 500 error is returned.
-
-    Args:
-        user_data (UserRegistrationRequestSchema): The registration details including email and password.
-        db (AsyncSession): The asynchronous database session.
-
-    Returns:
-        UserRegistrationResponseSchema: The newly created user's details.
-
-    Raises:
-        HTTPException:
-            - 409 Conflict if a user with the same email exists.
-            - 500 Internal Server Error if an error occurs during user creation.
-    """
-    stmt = select(UserModel).where(UserModel.email == user_data.email)
-    result = await db.execute(stmt)
-    existing_user = result.scalars().first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"A user with this email {user_data.email} already exists."
-        )
-
-    stmt = select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
-    result = await db.execute(stmt)
-    user_group = result.scalars().first()
-    if not user_group:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Default user group not found."
-        )
-
-    try:
-        new_user = UserModel.create(
-            email=str(user_data.email),
-            raw_password=user_data.password,
-            group_id=user_group.id,
-        )
-        db.add(new_user)
-        await db.flush()
-
-        activation_token = ActivationTokenModel(user_id=new_user.id)
-        db.add(activation_token)
-
-        await db.commit()
-        await db.refresh(new_user)
-    except SQLAlchemyError as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during user creation."
-        ) from e
-    else:
-        return UserRegistrationResponseSchema.model_validate(new_user)
 
 
 @router.post(
@@ -163,7 +73,10 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -218,7 +131,128 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
+    login_link = f"{getattr(settings, 'FRONTEND_BASE_URL', 'http://127.0.0.1')}/accounts/login/"
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        str(user.email),
+        login_link,
+    )
+
     return MessageResponseSchema(message="User account activated successfully.")
+
+
+@router.post(
+    "/register/",
+    response_model=UserRegistrationResponseSchema,
+    summary="User Registration",
+    description="Register a new user with an email and password.",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        409: {
+            "description": "Conflict - User with this email already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A user with this email test@example.com already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred during user creation.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred during user creation."
+                    }
+                }
+            },
+        },
+    }
+)
+async def register_user(
+        user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
+        db: AsyncSession = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+) -> UserRegistrationResponseSchema:
+    """
+    Endpoint for user registration.
+
+    Registers a new user, hashes their password, and assigns them to the default user group.
+    If a user with the same email already exists, an HTTP 409 error is raised.
+    In case of any unexpected issues during the creation process, an HTTP 500 error is returned.
+
+    Args:
+        user_data (UserRegistrationRequestSchema): The registration details including email and password.
+        db (AsyncSession): The asynchronous database session.
+
+    Returns:
+        UserRegistrationResponseSchema: The newly created user's details.
+
+    Raises:
+        HTTPException:
+            - 409 Conflict if a user with the same email exists.
+            - 500 Internal Server Error if an error occurs during user creation.
+    """
+    stmt = select(UserModel).where(UserModel.email == user_data.email)
+    result = await db.execute(stmt)
+    existing_user = result.scalars().first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A user with this email {user_data.email} already exists."
+        )
+
+    stmt = select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
+    result = await db.execute(stmt)
+    user_group = result.scalars().first()
+    if not user_group:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Default user group not found."
+        )
+
+    try:
+        new_user = UserModel.create(
+            email=str(user_data.email),
+            raw_password=user_data.password,
+            group_id=user_group.id,
+        )
+        db.add(new_user)
+        await db.flush()
+
+        token = generate_token()
+        activation_token = ActivationTokenModel(
+            user_id=new_user.id,
+            token=token,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+        )
+
+        db.add(activation_token)
+
+        await db.commit()
+        await db.refresh(new_user)
+
+        base_frontend = getattr(settings, "FRONTEND_BASE_URL", "http://127.0.0.1:3000")
+        activation_link = f"{base_frontend}/accounts/activate/?email={new_user.email}&token={token}"
+
+        # --- Send activation email in background ---
+        background_tasks.add_task(
+            email_sender.send_activation_email,
+            str(new_user.email),
+            activation_link,
+        )
+
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during user creation."
+        ) from e
+    else:
+        return UserRegistrationResponseSchema.model_validate(new_user)
 
 
 @router.post(
@@ -233,7 +267,11 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -248,24 +286,48 @@ async def request_password_reset_token(
     Returns:
         MessageResponseSchema: A success message indicating that instructions will be sent.
     """
-    stmt = select(UserModel).filter_by(email=data.email)
-    result = await db.execute(stmt)
-    user = result.scalars().first()
+
+    success_msg = MessageResponseSchema(
+        message="If you are registered, you will receive an email with instructions."
+    )
+
+    result = await db.execute(
+        select(UserModel).where(
+            and_(
+                UserModel.email == data.email,
+                UserModel.is_active.is_(True),
+            )
+        )
+    )
+    user = result.scalar_one_or_none()
 
     if not user or not user.is_active:
-        return MessageResponseSchema(
-            message="If you are registered, you will receive an email with instructions."
-        )
+        return success_msg
 
     await db.execute(delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id))
 
-    reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
-    db.add(reset_token)
+    token = generate_token()
+    reset_token_record = PasswordResetTokenModel(
+        user_id=cast(int, user.id),
+        token=token,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    db.add(reset_token_record)
     await db.commit()
 
-    return MessageResponseSchema(
-        message="If you are registered, you will receive an email with instructions."
+    base_frontend = getattr(settings, "FRONTEND_BASE_URL", "http://127.0.0.1")
+    reset_link = (
+        f"{base_frontend}/accounts/reset-password/confirm/"
+        f"?email={user.email}&token={token}"
     )
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        str(user.email),
+        reset_link,
+    )
+
+    return success_msg
 
 
 @router.post(
@@ -313,7 +375,10 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -367,8 +432,15 @@ async def reset_password(
 
     try:
         user.password = data.password
-        await db.run_sync(lambda s: s.delete(token_record))
+        await db.delete(token_record)
         await db.commit()
+
+        login_link = f"{getattr(settings, 'FRONTEND_BASE_URL', 'http://127.0.0.1')}/accounts/login/"
+        background_tasks.add_task(
+            email_sender.send_password_reset_complete_email,
+            str(data.email),
+            login_link,
+        )
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
