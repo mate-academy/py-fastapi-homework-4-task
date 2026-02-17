@@ -75,7 +75,7 @@ async def test_create_user_profile_with_fake_s3(
     assert profile_in_db.gender == "man", "Gender is incorrect!"
     assert str(profile_in_db.date_of_birth) == "1990-01-01", "Date of birth is incorrect!"
     assert profile_in_db.info == "This is a test profile.", "Profile info is incorrect!"
-    assert profile_in_db.avatar == avatar_key, "Avatar key in database does not match!"
+    assert profile_in_db.avatar == expected_url, "Avatar key in database does not match!"
 
 
 @pytest.mark.asyncio
@@ -225,7 +225,7 @@ async def test_admin_creates_user_profile(
     assert profile_in_db.gender == "man", "Gender is incorrect!"
     assert str(profile_in_db.date_of_birth) == "1990-01-01", "Date of birth is incorrect!"
     assert profile_in_db.info == "Test profile.", "Profile info is incorrect!"
-    assert profile_in_db.avatar == avatar_key, "Avatar key in database does not match!"
+    assert profile_in_db.avatar == expected_url, "Avatar key in database does not match!"
 
 
 @pytest.mark.asyncio
