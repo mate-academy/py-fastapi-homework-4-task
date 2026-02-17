@@ -17,7 +17,7 @@ from database import (
 @pytest.mark.e2e
 @pytest.mark.order(1)
 @pytest.mark.asyncio
-async def test_registration(e2e_client, reset_db_once_for_e2e, settings, seed_user_groups, e2e_db_session):
+async def test_registration(e2e_client, setup_e2e_db, settings):
     """
     End-to-end test for user registration.
 
@@ -34,12 +34,12 @@ async def test_registration(e2e_client, reset_db_once_for_e2e, settings, seed_us
     - Ensure the email body contains the activation link.
     """
     user_data = {
-        "email": "test@mate.com",
+        "email": "test1@mate.com",
         "password": "StrongPassword123!"
     }
 
     response = await e2e_client.post("/api/v1/accounts/register/", json=user_data)
-    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert response.status_code == 201, f"Expected 201, got {response.json()}"
     response_data = response.json()
     assert response_data["email"] == user_data["email"]
 
@@ -47,8 +47,8 @@ async def test_registration(e2e_client, reset_db_once_for_e2e, settings, seed_us
     async with httpx.AsyncClient() as client:
         mailhog_response = await client.get(mailhog_url)
 
-    await e2e_db_session.commit()
-    e2e_db_session.expire_all()
+    await setup_e2e_db.commit()
+    setup_e2e_db.expire_all()
 
     assert mailhog_response.status_code == 200, f"MailHog API returned {mailhog_response.status_code}"
     messages = mailhog_response.json()["items"]
@@ -96,7 +96,7 @@ async def test_account_activation(e2e_client, settings, e2e_db_session):
     - Fetch the list of emails from MailHog via its API.
     - Verify the email sent confirms the activation and contains the expected details.
     """
-    user_email = "test@mate.com"
+    user_email = "test1@mate.com"
 
     stmt = (
         select(ActivationTokenModel)

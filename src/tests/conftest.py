@@ -1,6 +1,6 @@
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings, get_accounts_email_notificator, get_s3_storage_client
@@ -185,9 +185,17 @@ async def seed_user_groups(db_session: AsyncSession):
     This fixture inserts all user groups defined in UserGroupEnum into the database and commits the transaction.
     It then yields the asynchronous database session for further testing.
     """
-    groups = [{"name": group.value} for group in UserGroupEnum]
-    await db_session.execute(insert(UserGroupModel).values(groups))
-    await db_session.commit()
+    existing = await db_session.execute(select(UserGroupModel.name))
+    existing_names = set(existing.scalars().all())
+
+    groups_to_add = [
+        {"name": group.value} for group in UserGroupEnum if group.value not in existing_names
+    ]
+
+    if groups_to_add:
+        await db_session.execute(insert(UserGroupModel).values(groups_to_add))
+        await db_session.commit()
+
     yield db_session
 
 
@@ -209,3 +217,28 @@ async def seed_database(db_session):
         await seeder.seed()
 
     yield db_session
+
+
+@pytest_asyncio.fixture(scope="function")
+async def setup_e2e_db():
+    """
+    Fully reset the DB and seed default user groups for E2E tests.
+    Ensures a clean state for each test.
+    """
+    # 1️⃣ Reset DB
+    await reset_database()  # drops & recreates all tables
+
+    # 2️⃣ Seed default user groups
+    async with get_db_contextmanager() as session:
+        existing = await session.execute(select(UserGroupModel.name))
+        existing_names = set(existing.scalars().all())
+
+        groups_to_add = [
+            {"name": group.value} for group in UserGroupEnum if group.value not in existing_names
+        ]
+        if groups_to_add:
+            await session.execute(insert(UserGroupModel).values(groups_to_add))
+            await session.commit()
+
+        yield session
+

@@ -1,13 +1,15 @@
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone, date
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks, Form, UploadFile, File
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config import get_jwt_auth_manager, get_settings, BaseAppSettings, get_accounts_email_notificator
+from config import get_jwt_auth_manager, get_settings, BaseAppSettings, get_accounts_email_notificator, get_s3_storage_client
+from storages.interfaces import S3StorageInterface
 from database import (
     get_db,
     UserModel,
@@ -15,9 +17,9 @@ from database import (
     UserGroupEnum,
     ActivationTokenModel,
     PasswordResetTokenModel,
-    RefreshTokenModel
+    RefreshTokenModel, UserProfileModel
 )
-from exceptions import BaseSecurityError
+from exceptions import BaseSecurityError, TokenExpiredError
 from notifications import EmailSenderInterface
 from schemas import (
     UserRegistrationRequestSchema,
@@ -31,9 +33,36 @@ from schemas import (
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema
 )
+from schemas.profiles import ProfileCreateSchema, ProfileResponseSchema
 from security.interfaces import JWTAuthManagerInterface
+from validation import validate_image
+
 
 router = APIRouter()
+
+async def get_current_user_payload(
+    authorization: str | None,
+    jwt_manager: JWTAuthManagerInterface,
+):
+    if not authorization:
+        raise HTTPException(401, "Authorization header is missing")
+
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            401,
+            "Invalid Authorization header format. Expected 'Bearer <token>'"
+        )
+
+    token = authorization.split(" ")[1]
+
+    try:
+        payload = jwt_manager.decode_access_token(token)
+    except TokenExpiredError:
+        raise HTTPException(401, "Token has expired.")
+    except Exception:
+        raise HTTPException(401, "Invalid token.")
+
+    return payload
 
 
 @router.post(
@@ -67,7 +96,9 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -88,6 +119,8 @@ async def register_user(
             - 409 Conflict if a user with the same email exists.
             - 500 Internal Server Error if an error occurs during user creation.
     """
+    reg_link = "http://127.0.0.1/accounts/register/"
+
     stmt = select(UserModel).where(UserModel.email == user_data.email)
     result = await db.execute(stmt)
     existing_user = result.scalars().first()
@@ -120,6 +153,13 @@ async def register_user(
 
         await db.commit()
         await db.refresh(new_user)
+
+        background_tasks.add_task(
+            email_sender.send_activation_email,
+            str(new_user.email),
+            reg_link
+        )
+
     except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
@@ -163,7 +203,9 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -185,6 +227,8 @@ async def activate_account(
             - 400 Bad Request if the activation token is invalid or expired.
             - 400 Bad Request if the user account is already active.
     """
+    activ_link = "http://127.0.0.1/accounts/activate/"
+
     stmt = (
         select(ActivationTokenModel)
         .options(joinedload(ActivationTokenModel.user))
@@ -215,8 +259,15 @@ async def activate_account(
         )
 
     user.is_active = True
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        str(user.email),
+        activ_link
+    )
     await db.delete(token_record)
     await db.commit()
+
+
 
     return MessageResponseSchema(message="User account activated successfully.")
 
@@ -233,7 +284,9 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -248,6 +301,8 @@ async def request_password_reset_token(
     Returns:
         MessageResponseSchema: A success message indicating that instructions will be sent.
     """
+    req_pass_link = "http://127.0.0.1/accounts/password-reset/request/"
+
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
@@ -261,6 +316,11 @@ async def request_password_reset_token(
 
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        str(user.email),
+        req_pass_link
+    )
     await db.commit()
 
     return MessageResponseSchema(
@@ -313,7 +373,9 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -334,6 +396,8 @@ async def reset_password(
             - 400 Bad Request if the email or token is invalid, or the token has expired.
             - 500 Internal Server Error if an error occurs during the password reset process.
     """
+    complete_reset_link = "http://127.0.0.1/accounts/reset-password/complete/"
+
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
@@ -368,6 +432,13 @@ async def reset_password(
     try:
         user.password = data.password
         await db.run_sync(lambda s: s.delete(token_record))
+
+        background_tasks.add_task(
+            email_sender.send_password_reset_complete_email,
+            str(user.email),
+            complete_reset_link
+        )
+
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
@@ -580,3 +651,106 @@ async def refresh_access_token(
     new_access_token = jwt_manager.create_access_token({"user_id": user_id})
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
+
+
+@router.post(
+    "/users/{user_id}/profile/",
+    response_model=ProfileResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_profile(
+    user_id: int,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    gender: str = Form(...),
+    date_of_birth: str = Form(...),
+    info: str = Form(...),
+    avatar: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    s3_client: S3StorageInterface = Depends(get_s3_storage_client),
+    authorization: str | None = Depends(get_current_user_payload),
+):
+    # ---------------- TOKEN VALIDATION ----------------
+    payload = await get_current_user_payload(authorization, jwt_manager)
+    requester_id = payload.get('user_id')
+    requester_role = payload.get("role")
+
+    # ---------------- AUTHORIZATION ----------------
+    if requester_id != user_id and requester_role != "admin":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "You don't have permission to edit this profile."
+        )
+
+    # ---------------- USER CHECK ----------------
+    stmt = select(UserModel).where(UserModel.id == user_id, UserModel.is_active == True)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "User not found or not active."
+        )
+
+    # ---------------- PROFILE EXISTS ----------------
+    stmt = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
+    result = await db.execute(stmt)
+    existing_profile = result.scalar_one_or_none()
+
+    if existing_profile:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "User already has a profile."
+        )
+
+    # ---------------- SCHEMA VALIDATION ----------------
+    schema = ProfileCreateSchema(
+        first_name=first_name,
+        last_name=last_name,
+        gender=gender,
+        date_of_birth=date_of_birth,
+        info=info,
+    )
+
+    # ---------------- AVATAR VALIDATION ----------------
+    file_name = None
+
+    if avatar:
+        try:
+            await validate_image(avatar)
+        except Exception:
+            raise HTTPException(400, "Invalid avatar image")
+
+        file_bytes = await avatar.read()
+
+        # generate filename
+        ext = avatar.filename.split(".")[-1]
+        file_name = f"{user_id}_{uuid.uuid4().hex}.{ext}"
+
+        # upload
+        try:
+            await s3_client.upload_file(file_name, file_bytes)
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to upload avatar. Please try again later."
+            )
+
+    # ---------------- CREATE PROFILE ----------------
+    profile = UserProfileModel(
+        user_id=user_id,
+        first_name=schema.first_name,
+        last_name=schema.last_name,
+        gender=schema.gender,
+        date_of_birth=schema.date_of_birth,
+        info=schema.info,
+        avatar=s3_client.get_file_url(file_name),
+    )
+
+    db.add(profile)
+    await db.commit()
+    await db.refresh(profile)
+
+    return profile
