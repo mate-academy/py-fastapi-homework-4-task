@@ -7,7 +7,14 @@ from notifications import EmailSenderInterface, EmailSender
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface, S3StorageClient
+from typing import AsyncGenerator
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.database import async_session_maker
 
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session_maker() as session:
+        yield session
 
 def get_settings() -> BaseAppSettings:
     """
