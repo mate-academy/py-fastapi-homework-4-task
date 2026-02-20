@@ -5,7 +5,8 @@ from alembic import context
 from database.models import movies, accounts # noqa: F401
 from database.models.base import Base
 from database.session_postgresql import sync_postgresql_engine
-
+import os
+from dotenv import load_dotenv
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
