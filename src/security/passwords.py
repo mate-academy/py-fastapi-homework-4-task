@@ -9,7 +9,7 @@ pwd_context = CryptContext(
 
 def hash_password(password: str) -> str:
     """
-    Hash a plain-text password using the configured password context.
+    Hash a plain-text password using the configured password.
 
     This function takes a plain-text password and returns its bcrypt hash.
     The bcrypt algorithm is used with a specified number of rounds for enhanced security.
