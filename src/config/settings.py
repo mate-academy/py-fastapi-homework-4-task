@@ -18,6 +18,9 @@ class BaseAppSettings(BaseSettings):
 
     LOGIN_TIME_DAYS: int = 7
 
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://127.0.0.1:8000")
+    ACTIVATION_PATH: str = os.getenv("ACTIVATION_PATH", "/accounts/activate/")
+
     EMAIL_HOST: str = os.getenv("EMAIL_HOST", "host")
     EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", 25))
     EMAIL_HOST_USER: str = os.getenv("EMAIL_HOST_USER", "testuser")
@@ -60,3 +63,11 @@ class TestingSettings(BaseAppSettings):
             'PATH_TO_MOVIES_CSV',
             str(self.BASE_DIR / "database" / "seed_data" / "test_data.csv")
         )
+
+
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
+if ENVIRONMENT == "testing":
+    settings = TestingSettings()
+else:
+    settings = Settings()
