@@ -1,7 +1,7 @@
 from email_validator import validate_email, EmailNotValidError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
-from validators import url as validate_url
+import re
 import pytest
 import httpx
 from bs4 import BeautifulSoup
@@ -12,6 +12,9 @@ from database import (
     RefreshTokenModel,
     PasswordResetTokenModel
 )
+
+def validate_url(url: str) -> bool:
+    return bool(re.match(r"^https?://[^\s]+$", url))
 
 
 @pytest.mark.e2e

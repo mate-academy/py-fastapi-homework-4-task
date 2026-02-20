@@ -53,7 +53,6 @@ class EmailSender(EmailSenderInterface):
         message["To"] = recipient
         message["Subject"] = subject
         message.attach(MIMEText(html_content, "html"))
-
         try:
             smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port, start_tls=self._use_tls)
             await smtp.connect()

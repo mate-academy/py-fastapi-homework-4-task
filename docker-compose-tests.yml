@@ -28,7 +28,10 @@ services:
     volumes:
       - ./src:/usr/src/fastapi
     networks:
-      - theater_network_test
+      theater_network_test:
+        aliases:
+          - mailhog_theater
+          - minio_theater
 
   mailhog:
     image: mailhog/mailhog
@@ -37,7 +40,9 @@ services:
       - "8025:8025"
       - "1025:1025"
     networks:
-      - theater_network_test
+      theater_network_test:
+        aliases:
+          - mailhog_theater
 
   minio:
     image: minio/minio:latest
@@ -60,7 +65,9 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - theater_network_test
+      theater_network_test:
+        aliases:
+          - minio_theater
 
   minio_mc:
     build:
