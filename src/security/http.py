@@ -1,4 +1,10 @@
-from fastapi import Request, HTTPException, status
+from fastapi import Request, HTTPException, status, Depends
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from config import get_jwt_auth_manager
+from database import UserModel, get_db
+from security.interfaces import JWTAuthManagerInterface
 
 
 def get_token(request: Request) -> str:
