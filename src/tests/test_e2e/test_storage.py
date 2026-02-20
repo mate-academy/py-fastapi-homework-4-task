@@ -32,6 +32,7 @@ async def test_create_user_profile(e2e_client, e2e_db_session, settings, s3_clie
 
     login_url = "/api/v1/accounts/login/"
     login_response = await e2e_client.post(login_url, json={"email": user_email, "password": user_password})
+    print(login_response.content)
     assert login_response.status_code == 201, f"Expected 201, got {login_response.status_code}"
 
     tokens = login_response.json()
