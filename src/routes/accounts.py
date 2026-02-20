@@ -1,13 +1,21 @@
-from datetime import datetime, timezone
-from typing import cast
+import os
+import secrets
+import uuid
+from datetime import datetime, timezone, timedelta, date
+from typing import cast, Annotated
+from email.mime.text import MIMEText
 
-from fastapi import APIRouter, Depends, status, HTTPException
+import aiosmtplib
+import aiboto3
+
+from security.token_manager import JWTAuthManager
+from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File, Header
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, Session
 
-from config import get_jwt_auth_manager, get_settings, BaseAppSettings, get_accounts_email_notificator
+from config import get_jwt_auth_manager, get_settings, BaseAppSettings, get_accounts_email_notificator, settings
 from database import (
     get_db,
     UserModel,
@@ -31,9 +39,12 @@ from schemas import (
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema
 )
+from schemas.accounts import  UserRead
 from security.interfaces import JWTAuthManagerInterface
+from security.passwords import hash_password
 
 router = APIRouter()
+bucket_name = os.getenv("MINIO_STORAGE", "default-bucket-name")
 
 
 @router.post(
@@ -580,3 +591,207 @@ async def refresh_access_token(
     new_access_token = jwt_manager.create_access_token({"user_id": user_id})
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
+
+jwt_manager = JWTAuthManager(
+    secret_key_access="your_access_secret",
+    secret_key_refresh="your_refresh_secret",
+    algorithm="HS256"
+)
+
+def local_create_token(data: dict, expires_minutes: int) -> str:
+    expires_delta = timedelta(minutes=expires_minutes)
+    return jwt_manager._create_token(data, jwt_manager._secret_key_access, expires_delta)
+
+async def send_email(to_email: str, subject: str, body: str):
+    msg = MIMEText(body, "plain")
+    msg["Subject"] = subject
+    msg["From"] = "maximuschampion2002@gmail.com"
+    msg["To"] = to_email
+
+    try:
+        await aiosmtplib.send(
+            msg,
+            hostname="smtp.gmail.com",
+            port=587,
+            start_tls=True,
+            username="maximuschampion2002@gmail.com",
+            password="your_app_password",
+        )
+        print("Email sent successfully")
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
+async def register(data: UserRegistrationRequestSchema):
+    user_id = 1234
+    token = local_create_token({"user_id": user_id, "action": "activate"}, expires_minutes=60*24)
+    activation_link = f"https://example.com/activate/{user_id}/{token}"
+    await send_email(data.email, "Activate Your Account", f"To activate your account, visit the following link:\n\n{activation_link}")
+    return {"message": "Activation email sent."}
+
+async def send_reset_password(user_email: str, token: str):
+    subject = "Reset Your Password"
+    body = f"To reset your password, visit the following link:\n\nhttps://example.com/reset-password/complete/?email={user_email}&token={token}"
+    await send_email(user_email, subject, body)
+
+async def save_reset_token(db: AsyncSession, user_id: int, token: str):
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+    reset_token = PasswordResetTokenModel(
+        user_id=user_id,
+        token=token,
+        expires_at=expires_at
+    )
+    db.add(reset_token)
+    await db.commit()
+
+async def get_user_by_email(db: AsyncSession, email: str):
+    result = await db.execute(select(UserModel).where(UserModel.email == email))
+    user = result.scalars().first()
+    return user
+
+@router.post("/password-reset/request")
+async def forgot_password(email: str, db: AsyncSession = Depends(get_db)):
+    user = await get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    token = secrets.token_urlsafe(32)
+    await save_reset_token(db, user.id, token)
+    await send_reset_password(email, token)
+    return {"message": "Password reset email sent."}
+
+async def get_user_by_reset_token(db: AsyncSession, token: str):
+    result = await db.execute(
+        select(PasswordResetTokenModel).where(PasswordResetTokenModel.token == token)
+    )
+    token_obj = result.scalars().first()
+
+    if not token_obj or token_obj.expires_at < datetime.utcnow():
+        return None
+
+    result = await db.execute(
+        select(UserModel).where(UserModel.id == token_obj.user_id)
+    )
+    user = result.scalars().first()
+    return user
+
+
+@router.post("/password-reset/confirm")
+async def reset_password(token: str, new_password: str, db: AsyncSession = Depends(get_db)):
+    user = await get_user_by_reset_token(db, token)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+    user.hashed_password = hash_password(new_password)
+    await db.commit()
+
+    return {"detail": "Password updated successfully"}
+
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    contents = await file.read()
+    return {"filename": file.filename, "content_type": file.content_type}
+
+def fake_decode_token(token: str) -> UserRead:
+    return UserRead(
+        id=1,
+        email="john@example.com",
+        is_active=True,
+        created_at=date.today(),
+        updated_at=date.today(),
+        group_id=2
+    )
+
+async def get_current_user(authorization: Annotated[str | None, Header()] = None) -> UserRead:
+    if authorization is None or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid or missing Authorization header")
+    token = authorization[len("Bearer "):]
+    return fake_decode_token(token)
+
+async def update_password(user_id: int, new_password: str, db: AsyncSession):
+    result = await db.execute(select(UserModel).where(UserModel.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise Exception("User not found")
+
+    user.hashed_password = hash_password(new_password)
+    await db.commit()
+
+@router.post("/users/me/avatar")
+async def upload_avatar(file: UploadFile = File(...),
+                        db: AsyncSession = Depends(get_db),
+                        current_user: UserRead = Depends(get_current_user)):
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    filename = f"user_{current_user.id}_avatar_{uuid.uuid4()}.jpg"
+    file_path = os.path.join("static", "avatars", filename)
+
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    contents = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    result = await db.execute(select(UserModel).where(UserModel.id == current_user.id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.avatar_url = f"/static/avatars/{filename}"
+    await db.commit()
+
+    return {"detail": "Avatar uploaded successfully", "avatar_url": user.avatar_url}
+
+
+@router.post("/users/me/avatar_s3")
+async def upload_avatar_s3(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: UserRead = Depends(get_current_user),
+):
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File is not an image")
+
+    filename = f"user_{current_user.id}.jpg"
+    contents = await file.read()
+
+    async with aiboto3.client('s3') as s3:
+        await s3.put_object(
+            Bucket=bucket_name,
+            Key=filename,
+            Body=contents,
+            ContentType=file.content_type
+        )
+
+    avatar_url = f"https://{bucket_name}.s3.amazonaws.com/{filename}"
+
+    result = await db.execute(select(UserModel).where(UserModel.id == current_user.id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.avatar_url = avatar_url
+    await db.commit()
+
+    return {"detail": "Avatar uploaded successfully", "avatar_url": avatar_url}
+
+
+@router.get("/users/me/avatar")
+async def get_my_avatar_url(
+    db: AsyncSession = Depends(get_db),
+    current_user: UserRead = Depends(get_current_user),
+):
+    result = await db.execute(select(UserModel).where(UserModel.id == current_user.id))
+    user = result.scalar_one_or_none()
+    if not user or not user.avatar_url:
+        raise HTTPException(status_code=404, detail="Аватар не встановлено")
+
+    filename = user.avatar_url.split("/")[-1]
+
+    async with aiboto3.client('s3') as s3:
+        presigned_url = await s3.generate_presigned_url(
+            ClientMethod='get_object',
+            Params={'Bucket': bucket_name, 'Key': filename},
+            ExpiresIn=3600
+        )
+
+    return {"avatar_url": presigned_url}
