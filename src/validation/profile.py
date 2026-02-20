@@ -3,7 +3,7 @@ from datetime import date
 from io import BytesIO
 
 from PIL import Image
-from fastapi import UploadFile
+from starlette.datastructures import UploadFile
 
 from database.models.accounts import GenderEnum
 
@@ -43,3 +43,8 @@ def validate_birth_date(birth_date: date) -> None:
     age = (date.today() - birth_date).days // 365
     if age < 18:
         raise ValueError('You must be at least 18 years old to register.')
+
+
+def validate_info(info: str) -> None:
+    if not info.strip():
+        raise ValueError("Info field cannot be empty or contain only spaces.")
