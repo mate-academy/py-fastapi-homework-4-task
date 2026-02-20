@@ -1,7 +1,7 @@
 from email_validator import validate_email, EmailNotValidError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
-from validators import url as validate_url
+import re
 import pytest
 import httpx
 from bs4 import BeautifulSoup
@@ -14,10 +14,20 @@ from database import (
 )
 
 
+def validate_url(url: str) -> bool:
+    return bool(re.match(r"^https?://\S+$", url))
+
+
 @pytest.mark.e2e
 @pytest.mark.order(1)
 @pytest.mark.asyncio
-async def test_registration(e2e_client, reset_db_once_for_e2e, settings, seed_user_groups, e2e_db_session):
+async def test_registration(
+        e2e_client,
+        reset_db_once_for_e2e,
+        settings,
+        seed_user_groups,
+        e2e_db_session
+):
     """
     End-to-end test for user registration.
 
