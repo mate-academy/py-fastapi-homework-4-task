@@ -78,14 +78,12 @@ services:
       context: .
       dockerfile: ./docker/mailhog/Dockerfile
     container_name: mailhog_theater
-    command: ["/bin/bash", "-c", "/commands/setup_mailhog_auth.sh && /go/bin/MailHog"]
     ports:
       - "8025:8025"
       - "1025:1025"
     env_file:
       - .env
-    environment:
-      MH_AUTH_FILE: /mailhog.auth
+    command: ["/bin/sh", "-c", "/commands/setup_mailhog_auth.sh && MailHog"]
     networks:
       - theater_network
 
@@ -121,6 +119,7 @@ services:
       - .env
     networks:
       - theater_network
+    restart: "no"
 
 volumes:
   postgres_theater_data:
