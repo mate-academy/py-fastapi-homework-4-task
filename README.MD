@@ -1,4 +1,4 @@
-# Movie Theater API Project
+ # Movie Theater API Project
 
 Welcome to the **Movie Theater API** project! This educational assignment is designed to help you develop and refine your skills in creating robust web applications using FastAPI, SQLAlchemy, and Docker. Here's what the project offers:
 
