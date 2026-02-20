@@ -1,13 +1,20 @@
-from datetime import date
+from pydantic import BaseModel
+from src.database.models.accounts import GenderEnum
 
-from fastapi import UploadFile, Form, File, HTTPException
-from pydantic import BaseModel, field_validator, HttpUrl
+class ProfileRequestSchema(BaseModel):
+    user_id: int
+    first_name: str
+    last_name: str
+    gender: GenderEnum  # Використовуємо GenderEnum для коректної валідації
 
-from validation import (
-    validate_name,
-    validate_image,
-    validate_gender,
-    validate_birth_date
-)
+    class Config:
+        orm_mode = True
 
-# Write your code here
+class ProfileResponseSchema(BaseModel):
+    user_id: int
+    first_name: str
+    last_name: str
+    gender: GenderEnum  # Замість str використовуємо GenderEnum
+
+    class Config:
+        orm_mode = True
