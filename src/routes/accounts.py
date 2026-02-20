@@ -1,13 +1,16 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from config import get_jwt_auth_manager, get_settings, BaseAppSettings, get_accounts_email_notificator
+from exceptions import BaseSecurityError
+from notifications import EmailSenderInterface
+from security.interfaces import JWTAuthManagerInterface
 from database import (
     get_db,
     UserModel,
@@ -17,8 +20,6 @@ from database import (
     PasswordResetTokenModel,
     RefreshTokenModel
 )
-from exceptions import BaseSecurityError
-from notifications import EmailSenderInterface
 from schemas import (
     UserRegistrationRequestSchema,
     UserRegistrationResponseSchema,
@@ -31,7 +32,7 @@ from schemas import (
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema
 )
-from security.interfaces import JWTAuthManagerInterface
+
 
 router = APIRouter()
 
@@ -67,7 +68,9 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
-        db: AsyncSession = Depends(get_db),
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        db: AsyncSession = Depends(get_db)
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -120,6 +123,7 @@ async def register_user(
 
         await db.commit()
         await db.refresh(new_user)
+
     except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
@@ -127,6 +131,13 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
+        activation_link = "https://mate.com/accounts/activate/"
+
+        background_tasks.add_task(
+            email_sender.send_activation_email,
+            new_user.email,
+            activation_link,
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
@@ -163,6 +174,8 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -175,6 +188,8 @@ async def activate_account(
 
     Args:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
+        background_tasks (BackgroundTasks): enables starting background tasks
+        email_sender (EmailSenderInterface): service for sending emails
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -218,6 +233,13 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
+    login_link = "https://mate.com/accounts/login/"
+
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        str(activation_data.email),
+        login_link,
+    )
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -233,6 +255,8 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -243,6 +267,8 @@ async def request_password_reset_token(
 
     Args:
         data (PasswordResetRequestSchema): The request data containing the user's email.
+        background_tasks (BackgroundTasks): enables starting background tasks
+        email_sender (EmailSenderInterface): service for sending emails
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -262,6 +288,14 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+
+    password_reset_complete_link = "https://mate.com/accounts/password-reset-complete/"
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        str(data.email),
+        password_reset_complete_link,
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -313,7 +347,10 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
+
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -324,6 +361,8 @@ async def reset_password(
     Args:
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
+        background_tasks (BackgroundTasks): enables starting background tasks
+        email_sender (EmailSenderInterface): service for sending emails
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -375,7 +414,13 @@ async def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
         )
+    login_link = "https://mate.com/accounts/login/"
 
+    background_tasks.add_task(
+        email_sender.send_password_reset_complete_email,
+        str(data.email),
+        login_link
+    )
     return MessageResponseSchema(message="Password reset successfully.")
 
 
