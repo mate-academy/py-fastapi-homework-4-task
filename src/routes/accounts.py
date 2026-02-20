@@ -127,6 +127,12 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
+        # Отправка email с токеном активации
+        notificator: EmailSenderInterface = get_accounts_email_notificator()
+        await notificator.send_activation_email(
+            email=new_user.email,
+            token=activation_token.token
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
@@ -553,13 +559,18 @@ async def refresh_access_token(
     try:
         decoded_token = jwt_manager.decode_refresh_token(token_data.refresh_token)
         user_id = decoded_token.get("user_id")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid token payload: user_id missing.",
+            )
     except BaseSecurityError as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
         )
 
-    stmt = select(RefreshTokenModel).filter_by(token=token_data.refresh_token)
+    stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == token_data.refresh_token)
     result = await db.execute(stmt)
     refresh_token_record = result.scalars().first()
     if not refresh_token_record:
@@ -568,7 +579,7 @@ async def refresh_access_token(
             detail="Refresh token not found.",
         )
 
-    stmt = select(UserModel).filter_by(id=user_id)
+    stmt = select(UserModel).where(UserModel.id == user_id)
     result = await db.execute(stmt)
     user = result.scalars().first()
     if not user:
@@ -577,6 +588,7 @@ async def refresh_access_token(
             detail="User not found.",
         )
 
+    # Создаем новый access token
     new_access_token = jwt_manager.create_access_token({"user_id": user_id})
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
