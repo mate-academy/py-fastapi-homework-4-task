@@ -1,11 +1,14 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from fastapi import Request
+from starlette.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 
 from config import get_jwt_auth_manager, get_settings, BaseAppSettings, get_accounts_email_notificator
 from database import (
@@ -32,6 +35,7 @@ from schemas import (
     TokenRefreshResponseSchema
 )
 from security.interfaces import JWTAuthManagerInterface
+# templates = Jinja2Templates(directory="src/notifications/templates")
 
 router = APIRouter()
 
@@ -67,6 +71,8 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> UserRegistrationResponseSchema:
     """
@@ -119,6 +125,14 @@ async def register_user(
         db.add(activation_token)
 
         await db.commit()
+
+        activation_link = f"http://127.0.0.1:8000/api/accounts/activate?token={activation_token.token}"
+
+        background_tasks.add_task(
+            email_sender.send_activation_email,
+            new_user.email,
+            activation_link
+        )
         await db.refresh(new_user)
     except SQLAlchemyError as e:
         await db.rollback()
@@ -162,8 +176,9 @@ async def register_user(
     },
 )
 async def activate_account(
-        activation_data: UserActivationRequestSchema,
-        db: AsyncSession = Depends(get_db),
+    activation_data: UserActivationRequestSchema,
+    db: AsyncSession = Depends(get_db),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -218,6 +233,13 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
+    login_url = "http://127.0.0.1:8000/login"  # можна винести в конфігурацію
+
+    await email_sender.send_activation_complete_email(
+        email=user.email,
+        login_link=login_url
+    )
+
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -233,7 +255,10 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
+
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -263,6 +288,13 @@ async def request_password_reset_token(
     db.add(reset_token)
     await db.commit()
 
+    reset_url = f"http://127.0.0.1:8000/api/accounts/reset-password/complete/?token={reset_token.token}"
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        user.email,
+        reset_url
+    )
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
     )
@@ -313,6 +345,7 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -367,7 +400,16 @@ async def reset_password(
 
     try:
         user.password = data.password
-        await db.run_sync(lambda s: s.delete(token_record))
+        await db.delete(token_record)
+        # await db.run_sync(lambda s: s.delete(token_record))
+
+        login_url = "http://127.0.0.1:8000/login"  # можна винести в конфігурацію
+
+        await email_sender.send_password_reset_complete_email(
+            email=user.email,
+            login_link=login_url
+        )
+
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
