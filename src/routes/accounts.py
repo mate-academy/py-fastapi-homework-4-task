@@ -66,9 +66,11 @@ router = APIRouter()
     }
 )
 async def register_user(
-        user_data: UserRegistrationRequestSchema,
-        db: AsyncSession = Depends(get_db),
+    user_data: UserRegistrationRequestSchema,
+    db: AsyncSession = Depends(get_db),
+    notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> UserRegistrationResponseSchema:
+
     """
     Endpoint for user registration.
 
@@ -120,6 +122,17 @@ async def register_user(
 
         await db.commit()
         await db.refresh(new_user)
+
+        # notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
+
+        activation_url = f"https://your-frontend.com/activate?token={activation_token.token}&email={new_user.email}"
+
+        await notificator.send_email(
+            to=new_user.email,
+            subject="Activate your account",
+            body=f"Hello,\n\nPlease activate your account by clicking the link: {activation_url}"
+        )
+
     except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
@@ -232,8 +245,9 @@ async def activate_account(
     status_code=status.HTTP_200_OK,
 )
 async def request_password_reset_token(
-        data: PasswordResetRequestSchema,
-        db: AsyncSession = Depends(get_db),
+    data: PasswordResetRequestSchema,
+    db: AsyncSession = Depends(get_db),
+    notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -263,10 +277,20 @@ async def request_password_reset_token(
     db.add(reset_token)
     await db.commit()
 
+    # notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
+
+    reset_url = f"https://your-frontend.com/reset-password?token={reset_token.token}&email={user.email}"
+
+    await notificator.send_email(
+        to=user.email,
+        subject="Password Reset Request",
+        body=f"Hi,\n\nYou requested a password reset. Click the link to reset your password: {reset_url}"
+    )
+
+
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
     )
-
 
 @router.post(
     "/reset-password/complete/",
@@ -312,8 +336,9 @@ async def request_password_reset_token(
     },
 )
 async def reset_password(
-        data: PasswordResetCompleteRequestSchema,
-        db: AsyncSession = Depends(get_db),
+    data: PasswordResetCompleteRequestSchema,
+    db: AsyncSession = Depends(get_db),
+    notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -369,6 +394,14 @@ async def reset_password(
         user.password = data.password
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
+        # notificator: EmailSenderInterface = Depends(get_accounts_email_notificator)
+
+        await notificator.send_email(
+            to=user.email,
+            subject="Password Reset Successful",
+            body="Your password has been successfully reset."
+        )
+
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(

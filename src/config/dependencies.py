@@ -1,12 +1,20 @@
 import os
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import Request
 
-from config.settings import TestingSettings, Settings, BaseAppSettings
+from config.settings import TestingSettings, Settings, BaseAppSettings, EmailSettings
+from database import UserModel
+from exceptions import BaseSecurityError
 from notifications import EmailSenderInterface, EmailSender
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface, S3StorageClient
+
+from notifications.email_service import SMTPEmailSender
+from notifications import EmailSenderInterface
+from pydantic_settings import BaseSettings
 
 
 def get_settings() -> BaseAppSettings:
@@ -48,35 +56,44 @@ def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> J
         algorithm=settings.JWT_SIGNING_ALGORITHM
     )
 
+email_settings = EmailSettings()
 
-def get_accounts_email_notificator(
-    settings: BaseAppSettings = Depends(get_settings)
-) -> EmailSenderInterface:
-    """
-    Retrieve an instance of the EmailSenderInterface configured with the application settings.
 
-    This function creates an EmailSender using the provided settings, which include details such as the email host,
-    port, credentials, TLS usage, and the directory and filenames for email templates. This allows the application
-    to send various email notifications (e.g., activation, password reset) as required.
+async def get_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+) -> UserModel:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(status_code=401, detail="Authorization header is missing")
 
-    Args:
-        settings (BaseAppSettings, optional): The application settings,
-        provided via dependency injection from `get_settings`.
+    parts = auth_header.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid Authorization header format. Expected 'Bearer <token>'")
 
-    Returns:
-        EmailSenderInterface: An instance of EmailSender configured with the appropriate email settings.
-    """
-    return EmailSender(
-        hostname=settings.EMAIL_HOST,
-        port=settings.EMAIL_PORT,
-        email=settings.EMAIL_HOST_USER,
-        password=settings.EMAIL_HOST_PASSWORD,
-        use_tls=settings.EMAIL_USE_TLS,
-        template_dir=settings.PATH_TO_EMAIL_TEMPLATES_DIR,
-        activation_email_template_name=settings.ACTIVATION_EMAIL_TEMPLATE_NAME,
-        activation_complete_email_template_name=settings.ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME,
-        password_email_template_name=settings.PASSWORD_RESET_TEMPLATE_NAME,
-        password_complete_email_template_name=settings.PASSWORD_RESET_COMPLETE_TEMPLATE_NAME
+    token = parts[1]
+    try:
+        payload = jwt_manager.decode_access_token(token)
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+    except BaseSecurityError:
+        raise HTTPException(status_code=401, detail="Token has expired.")
+
+    user = await db.get(UserModel, user_id)
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found or not active.")
+
+    return user
+
+
+def get_accounts_email_notificator() -> EmailSenderInterface:
+    return SMTPEmailSender(
+        smtp_host=email_settings.SMTP_HOST,
+        smtp_port=email_settings.SMTP_PORT,
+        username=email_settings.SMTP_USER,
+        password=email_settings.SMTP_PASS,
     )
 
 
