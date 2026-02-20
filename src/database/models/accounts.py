@@ -151,6 +151,20 @@ class UserProfileModel(Base):
 
     __table_args__ = (UniqueConstraint("user_id"),)
 
+    from sqlalchemy.orm import validates
+
+    @validates("first_name")
+    def normalize_first_name(self, key, value):
+        if value:
+            return value.lower()
+        return value
+
+    @validates("last_name")
+    def normalize_last_name(self, key, value):
+        if value:
+            return value.lower()
+        return value
+
     def __repr__(self):
         return (
             f"<UserProfileModel(id={self.id}, first_name={self.first_name}, last_name={self.last_name}, "

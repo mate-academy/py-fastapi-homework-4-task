@@ -1,9 +1,12 @@
 import os
+from datetime import date
 
-from fastapi import Depends
+from fastapi import Depends, Form, HTTPException
+from pydantic import ValidationError
 
 from config.settings import TestingSettings, Settings, BaseAppSettings
 from notifications import EmailSenderInterface, EmailSender
+from schemas.profiles import ProfileCreateSchema
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface, S3StorageClient
@@ -103,3 +106,25 @@ def get_s3_storage_client(
         secret_key=settings.S3_STORAGE_SECRET_KEY,
         bucket_name=settings.S3_BUCKET_NAME
     )
+
+
+async def get_profile_data(
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    gender: str = Form(...),
+    date_of_birth: date = Form(...),
+    info: str = Form(...),
+) -> ProfileCreateSchema:
+    try:
+        return ProfileCreateSchema(
+            first_name=first_name,
+            last_name=last_name,
+            gender=gender,
+            date_of_birth=date_of_birth,
+            info=info,
+        )
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=e.errors()
+        )
