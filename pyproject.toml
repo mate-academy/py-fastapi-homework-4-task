@@ -34,6 +34,8 @@ asyncpg = "^0.30.0"
 aiosqlite = "^0.21.0"
 aioboto3 = "^13.4.0"
 pytest-asyncio = "^0.25.3"
+validation = "^0.8.3"
+config = "^0.5.1"
 
 
 [build-system]
