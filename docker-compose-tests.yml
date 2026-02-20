@@ -55,10 +55,10 @@ services:
     volumes:
       - minio_data_test:/data
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: [ "CMD-SHELL", "curl -f http://127.0.0.1:9000/minio/health/live || exit 1" ]
+      interval: 5s
+      timeout: 2s
+      retries: 20
     networks:
       - theater_network_test
 

@@ -1,6 +1,7 @@
 from validation.profile import (
-    validate_name,
-    validate_image,
+    validate_birth_date,
     validate_gender,
-    validate_birth_date
+    validate_image,
+    validate_info,
+    validate_name,
 )
