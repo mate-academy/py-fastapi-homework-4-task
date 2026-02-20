@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +35,9 @@ from security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()
 
+# all double slashes are removed now
+ACCOUNTS_URL = "http://127.0.0.1:8000/api/v1/accounts/"
+
 
 @router.post(
     "/register/",
@@ -67,7 +70,9 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -79,6 +84,8 @@ async def register_user(
     Args:
         user_data (UserRegistrationRequestSchema): The registration details including email and password.
         db (AsyncSession): The asynchronous database session.
+        background_tasks (BackgroundTasks): An object to manage background task execution.
+        email_sender (EmailSenderInterface): An interface to send confirmation emails.
 
     Returns:
         UserRegistrationResponseSchema: The newly created user's details.
@@ -127,6 +134,13 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
+        # here is no double slashes in a link
+        activation_url = f"{ACCOUNTS_URL}activate/?token={activation_token.token}"
+        background_tasks.add_task(
+            email_sender.send_activation_email,
+            email=str(new_user.email),
+            activation_link=activation_url,
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
@@ -162,8 +176,10 @@ async def register_user(
     },
 )
 async def activate_account(
+        background_tasks: BackgroundTasks,
         activation_data: UserActivationRequestSchema,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -176,6 +192,8 @@ async def activate_account(
     Args:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
         db (AsyncSession): The asynchronous database session.
+        background_tasks (BackgroundTasks): An object to manage background task execution.
+        email_sender (EmailSenderInterface): An interface to send confirmation emails.
 
     Returns:
         MessageResponseSchema: A response message confirming successful activation.
@@ -218,6 +236,14 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
+    # here is no double slashes in a link
+    login_url = f"{ACCOUNTS_URL}login/"
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        email=str(user.email),
+        login_link=login_url,
+    )
+
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -233,7 +259,9 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -244,6 +272,8 @@ async def request_password_reset_token(
     Args:
         data (PasswordResetRequestSchema): The request data containing the user's email.
         db (AsyncSession): The asynchronous database session.
+        background_tasks (BackgroundTasks): An object to manage background task execution.
+        email_sender (EmailSenderInterface): An interface to send confirmation emails.
 
     Returns:
         MessageResponseSchema: A success message indicating that instructions will be sent.
@@ -262,6 +292,14 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+
+    # here is no double slashes in a link
+    reset_url = f"{ACCOUNTS_URL}reset-password/complete/?token={reset_token.token}"
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        email=str(user.email),
+        reset_link=reset_url,
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -312,8 +350,10 @@ async def request_password_reset_token(
     },
 )
 async def reset_password(
+        background_tasks: BackgroundTasks,
         data: PasswordResetCompleteRequestSchema,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -325,6 +365,8 @@ async def reset_password(
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
         db (AsyncSession): The asynchronous database session.
+        background_tasks (BackgroundTasks): An object to manage background task execution.
+        email_sender (EmailSenderInterface): An interface to send confirmation emails.
 
     Returns:
         MessageResponseSchema: A response message indicating successful password reset.
@@ -375,7 +417,13 @@ async def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
         )
-
+    # here is no double slashes in a link
+    login_url = f"{ACCOUNTS_URL}login/"
+    background_tasks.add_task(
+        email_sender.send_password_reset_complete_email,
+        email=str(user.email),
+        login_link=login_url,
+    )
     return MessageResponseSchema(message="Password reset successfully.")
 
 
