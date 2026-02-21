@@ -12,7 +12,6 @@ from validation import (
 )
 
 
-# Write your code here
 class UserProfileBaseSchema(BaseModel):
     first_name: str
     last_name: str

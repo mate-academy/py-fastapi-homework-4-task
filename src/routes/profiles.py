@@ -15,7 +15,6 @@ from storages.interfaces import S3StorageInterface
 
 router = APIRouter()
 
-# Write your code here
 auth_scheme = HTTPBearer(auto_error=False)
 
 
@@ -87,7 +86,6 @@ async def create_profile(
         select(UserProfileModel).where(UserProfileModel.user_id == user_id)
     )
     if existing_profile:
-        print(existing_profile)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already has a profile.",
