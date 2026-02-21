@@ -41,7 +41,7 @@ class UserProfileBaseSchema(BaseModel):
             raise ValueError(
                 "The info field must not be empty or consist only of spaces."
             )
-        return value.lower()
+        return value
 
     @field_validator("avatar")
     def avatar_validator(cls, value):

@@ -23,7 +23,7 @@ async def get_current_user(
     auth_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     db: AsyncSession = Depends(get_db),
 ) -> UserModel:
-    if not auth:
+    if auth is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization header is missing",
@@ -77,7 +77,7 @@ async def create_profile(
     avatar: UploadFile = File(...),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
 ):
-    if user_id != current_user.id:
+    if user_id != current_user.id and current_user.group.name != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile.",
@@ -90,14 +90,17 @@ async def create_profile(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already has a profile.",
         )
-    profile_data = UserProfileBaseSchema(
-        first_name=first_name,
-        last_name=last_name,
-        gender=gender,
-        date_of_birth=date_of_birth,
-        info=info,
-        avatar=avatar,
-    )
+    try:
+        profile_data = UserProfileBaseSchema(
+            first_name=first_name,
+            last_name=last_name,
+            gender=gender,
+            date_of_birth=date_of_birth,
+            info=info,
+            avatar=avatar,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     file_name = f"avatars/{user_id}_avatar.jpg"
     avatar_content = await avatar.read()
     try:
