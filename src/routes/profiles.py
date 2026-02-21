@@ -1,3 +1,4 @@
+import pathlib
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status, Form, UploadFile, File
@@ -64,10 +65,14 @@ async def get_current_user(
     return db_user
 
 
-@router.post("/users/{user_id}/profile/", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/users/{user_id}/profile/",
+    response_model=UserProfileResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_profile(
     user_id: int,
-    current_user: UserProfileResponseSchema = Depends(get_current_user),
+    current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     first_name: str = Form(...),
     last_name: str = Form(...),
@@ -77,11 +82,23 @@ async def create_profile(
     avatar: UploadFile = File(...),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
 ):
-    if user_id != current_user.id and current_user.group.name != "admin":
+    if (
+            user_id != current_user.id
+            and current_user.group.name not in ("admin", "moderator")
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile.",
         )
+
+    stmt_user = select(UserModel).where(UserModel.id == user_id)
+    target_user = await db.scalar(stmt_user)
+    if not target_user or not target_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or not active.",
+        )
+
     existing_profile = await db.scalar(
         select(UserProfileModel).where(UserProfileModel.user_id == user_id)
     )
@@ -101,7 +118,9 @@ async def create_profile(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    file_name = f"avatars/{user_id}_avatar.jpg"
+
+    extension = pathlib.Path(avatar.filename).suffix
+    file_name = f"avatars/{user_id}_avatar{extension}"
     avatar_content = await avatar.read()
     try:
         await s3_client.upload_file(file_name=file_name, file_data=avatar_content)
@@ -113,7 +132,7 @@ async def create_profile(
     avatar_url = await s3_client.get_file_url(file_name)
 
     new_profile = UserProfileModel(
-        user_id=current_user.id,
+        user_id=user_id,
         first_name=profile_data.first_name,
         last_name=profile_data.last_name,
         gender=profile_data.gender,

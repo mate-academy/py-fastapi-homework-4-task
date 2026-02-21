@@ -20,6 +20,8 @@ class UserProfileBaseSchema(BaseModel):
     info: str
     avatar: UploadFile
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     @field_validator("first_name", "last_name")
     def name_validator(cls, value):
         validate_name(value)
@@ -44,7 +46,7 @@ class UserProfileBaseSchema(BaseModel):
         return value
 
     @field_validator("avatar")
-    def avatar_validator(cls, value):
+    def avatar_validator(cls, value: UploadFile):
         validate_image(value)
         return value
 
