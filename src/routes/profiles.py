@@ -1,3 +1,4 @@
+import mimetypes
 import pathlib
 from datetime import date
 
@@ -43,7 +44,7 @@ async def get_current_user(
             )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
+            detail="Token is not valid."
         )
 
     user_id = payload.get("user_id")
@@ -127,14 +128,19 @@ async def create_profile(
         )
 
     extension = pathlib.Path(avatar.filename).suffix
+    if not extension:
+        extension = mimetypes.guess_extension(avatar.content_type) or ".jpg"
     file_name = f"avatars/{user_id}_avatar{extension}"
-    avatar_content = await avatar.read()
+    try:
+        avatar_content = await avatar.read()
+    finally:
+        await avatar.close()
     try:
         await s3_client.upload_file(
             file_name=file_name,
             file_data=avatar_content
         )
-    except S3FileUploadError:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload avatar. Please try again later.",
@@ -155,6 +161,6 @@ async def create_profile(
 
     full_avatar_url = await s3_client.get_file_url(new_profile.avatar)
     response_data = UserProfileResponseSchema.model_validate(new_profile)
-    response_data.avatar = full_avatar_url
+    response_data.avatar = str(full_avatar_url)
 
     return response_data
