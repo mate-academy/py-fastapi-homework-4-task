@@ -22,7 +22,7 @@ services:
       minio:
         condition: service_healthy
       minio_mc:
-        condition: service_completed_successfully
+        condition: service_healthy # Changed from completed_successfully
     volumes:
       - ./src:/usr/src/fastapi
     networks:
@@ -54,10 +54,15 @@ services:
       context: .
       dockerfile: docker/minio_mc/Dockerfile
     container_name: minio_mc_theater_test
-    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh" ]
+    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh && tail -f /dev/null" ]
     depends_on:
       minio:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/bin/mc", "ls", "local/theater-storage"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=some_password
