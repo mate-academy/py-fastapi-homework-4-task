@@ -40,7 +40,7 @@ class UserProfileBaseSchema(BaseModel):
     def info_validator(cls, value):
         if not value or not value.strip():
             raise ValueError(
-                "The info field must not be empty or consist only of spaces."
+                "Info field cannot be empty or contain only spaces."
             )
         return value
 
