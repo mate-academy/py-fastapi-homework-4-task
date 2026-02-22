@@ -60,7 +60,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "/usr/bin/mc", "ls", "local/theater-storage" ]
+      test: ["CMD", "/usr/bin/mc", "ls", "local/theater-storage"]
       interval: 5s
       timeout: 10s
       retries: 10
