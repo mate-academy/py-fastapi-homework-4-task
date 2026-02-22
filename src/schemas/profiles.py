@@ -1,9 +1,8 @@
 import datetime
 
 from fastapi import UploadFile
-from pydantic import ConfigDict, BaseModel, field_validator, HttpUrl
+from pydantic import ConfigDict, BaseModel, field_validator
 
-from database.models.accounts import GenderEnum
 from validation import (
     validate_name,
     validate_gender,
@@ -15,7 +14,7 @@ from validation import (
 class UserProfileBaseSchema(BaseModel):
     first_name: str
     last_name: str
-    gender: GenderEnum
+    gender: str
     date_of_birth: datetime.date
     info: str
     avatar: UploadFile
@@ -27,7 +26,7 @@ class UserProfileBaseSchema(BaseModel):
         validate_name(value)
         return value.lower()
 
-    @field_validator("gender")
+    @field_validator("gender", mode="before")
     def gender_validator(cls, value):
         validate_gender(value)
         return value
@@ -56,9 +55,9 @@ class UserProfileResponseSchema(BaseModel):
     user_id: int
     first_name: str
     last_name: str
-    gender: GenderEnum
+    gender: str
     date_of_birth: datetime.date
     info: str
-    avatar: HttpUrl
+    avatar: str
 
     model_config = ConfigDict(from_attributes=True)
