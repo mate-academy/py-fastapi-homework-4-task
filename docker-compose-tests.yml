@@ -60,10 +60,11 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/usr/bin/mc", "ls", "local/theater-storage"]
+      test: [ "CMD", "/usr/bin/mc", "ls", "local/theater-storage" ]
       interval: 5s
-      timeout: 5s
+      timeout: 10s
       retries: 10
+      start_period: 40s
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=some_password
