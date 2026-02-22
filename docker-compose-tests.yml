@@ -1,34 +1,43 @@
+version: "3.8"
+
 services:
+  db:
+    image: 'postgres:14.21-alpine'
+    container_name: postgres_theater_test
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=theater_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d theater_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - theater_network_test
+
   web:
     build:
       context: .
       dockerfile: ./docker/tests/Dockerfile
     container_name: backend_theater_test
-    command: [ "pytest", "-c", "/usr/src/config/pytest.ini",
-               "-m", "e2e", "--maxfail=5", "--disable-warnings", "-v", "--tb=short" ]
+    command: [ "pytest", "-c", "/usr/src/config/pytest.ini", "-m", "e2e", "--disable-warnings", "-v" ]
     environment:
       - PYTHONPATH=/usr/src/fastapi
       - ENVIRONMENT=testing
-      - EMAIL_HOST=mailhog_theater_test
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/theater_test
+      - EMAIL_HOST=mailhog
       - EMAIL_PORT=1025
-      - EMAIL_HOST_USER=testuser@mate.com
-      - EMAIL_HOST_PASSWORD=test_password
-      - EMAIL_USE_TLS=False
-      - MAILHOG_API_PORT=8025
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=some_password
       - MINIO_HOST=minio-theater-test
       - MINIO_PORT=9000
-      - MINIO_STORAGE=theater-storage
     depends_on:
+      db:
+        condition: service_healthy
       mailhog:
         condition: service_started
       minio:
         condition: service_healthy
-      minio_mc:
-        condition: service_completed_successfully
-    volumes:
-      - ./src:/usr/src/fastapi
     networks:
       - theater_network_test
 
@@ -37,7 +46,6 @@ services:
     container_name: mailhog_theater_test
     ports:
       - "8025:8025"
-      - "1025:1025"
     networks:
       - theater_network_test
 
@@ -45,20 +53,12 @@ services:
     image: minio/minio:latest
     container_name: minio-theater-test
     command: server --console-address ":9001" /data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=some_password
-      - MINIO_HOST=minio-theater-test
-      - MINIO_PORT=9000
-      - MINIO_STORAGE=theater-storage
-    volumes:
-      - minio_data_test:/data
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
-      interval: 10s
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
@@ -81,10 +81,6 @@ services:
       - MINIO_STORAGE=theater-storage
     networks:
       - theater_network_test
-
-volumes:
-  minio_data_test:
-    driver: local
 
 networks:
   theater_network_test:

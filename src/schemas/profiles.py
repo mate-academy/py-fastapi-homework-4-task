@@ -38,7 +38,7 @@ class UserProfileBaseSchema(BaseModel):
 
     @field_validator("info")
     def info_validator(cls, value):
-        if not value.strip():
+        if not value or not value.strip():
             raise ValueError(
                 "The info field must not be empty or consist only of spaces."
             )
