@@ -51,8 +51,14 @@ class UserProfileBaseSchema(BaseModel):
         return value
 
 
-class UserProfileResponseSchema(UserProfileBaseSchema):
+class UserProfileResponseSchema(BaseModel):
     id: int
+    user_id: int
+    first_name: str
+    last_name: str
+    gender: GenderEnum
+    date_of_birth: datetime.date
+    info: str
     avatar: HttpUrl
 
     model_config = ConfigDict(from_attributes=True)
