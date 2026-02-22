@@ -55,12 +55,12 @@ services:
       context: .
       dockerfile: docker/minio_mc/Dockerfile
     container_name: minio_mc_theater_test
-    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh && tail -f /dev/null" ]
+    command: ["/bin/sh", "-c", "/commands/setup_minio.sh && tail -f /dev/null"]
     depends_on:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/usr/bin/mc", "ls", "local/theater-storage"]
+      test: [ "CMD", "/usr/bin/mc", "ls", "local/theater-storage" ]
       interval: 5s
       timeout: 10s
       retries: 10
