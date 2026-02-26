@@ -49,7 +49,18 @@ async def create_profile(
     user_stmt = select(UserModel).where(UserModel.id == token_user_id)
     user_result = await db.execute(user_stmt)
     current_user = user_result.scalars().first()
+
+    target_user_stmt = select(UserModel).where(UserModel.id == user_id)
+    target_user_result = await db.execute(target_user_stmt)
+    target_user = target_user_result.scalars().first()
+
     if not current_user or not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or not active.",
+        )
+
+    if not target_user or not target_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or not active.",
@@ -59,7 +70,7 @@ async def create_profile(
     if token_user_id != user_id and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden",
+            detail="You don't have permission to edit this profile."
         )
 
     ProfileCreateSchema(
