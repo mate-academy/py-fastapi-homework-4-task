@@ -1,12 +1,13 @@
 from datetime import date
-from typing import Optional
+from typing import Optional, Any
 
-from pydantic import BaseModel, field_validator, HttpUrl, ConfigDict
+from pydantic import BaseModel, field_validator, ConfigDict
 
 from validation import (
     validate_name,
     validate_gender,
-    validate_birth_date
+    validate_birth_date,
+    validate_image
 )
 
 class ProfileCreateSchema(BaseModel):
@@ -15,10 +16,11 @@ class ProfileCreateSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
+    avatar: Any
 
     @field_validator("first_name", "last_name")
     @classmethod
-    def chek_name(cls, v: str):
+    def check_name(cls, v: str):
         validate_name(v)
         return v
 
@@ -27,7 +29,6 @@ class ProfileCreateSchema(BaseModel):
     def check_gender(cls, v: str):
         validate_gender(v)
         return v
-
 
     @field_validator("date_of_birth")
     @classmethod
@@ -43,6 +44,12 @@ class ProfileCreateSchema(BaseModel):
             raise ValueError("Info cannot be empty or consist only of spaces.")
         return v
 
+    @field_validator("avatar")
+    @classmethod
+    def validate_avatar_field(cls, v: Any):
+        if v:
+            validate_image(v)
+        return v
 
 class ProfileResponseSchema(BaseModel):
     id: int
@@ -52,6 +59,6 @@ class ProfileResponseSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
-    avatar: Optional[HttpUrl] = None
+    avatar: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)

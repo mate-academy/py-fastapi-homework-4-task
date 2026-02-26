@@ -3,22 +3,22 @@ from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from database import get_db, UserProfileModel
+from database import get_db, UserProfileModel, UserModel, UserGroupEnum
 from database.models.accounts import GenderEnum
 from schemas.profiles import ProfileResponseSchema, ProfileCreateSchema
-from validation import validate_image
 from security.http import get_token
 from config.dependencies import get_jwt_auth_manager, get_s3_storage_client
+from exceptions import BaseSecurityError
 
 router = APIRouter()
 
-@router.post("/",
+@router.post("/users/{user_id}/profile/",
              response_model=ProfileResponseSchema,
              status_code=status.HTTP_201_CREATED,
              summary="Create User profile",
-             description="Створює профіль користувача, завантажує аватар у MinIO та зберігає метадані в БД."
 )
 async def create_profile(
+    user_id: int,
     first_name: str = Form(...),
     last_name: str = Form(...),
     gender: GenderEnum = Form(...),
@@ -32,36 +32,60 @@ async def create_profile(
 ):
     try:
         payload = jwt_manager.decode_access_token(token)
-        user_id = payload.get("user_id")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User ID not found in token",
-            )
+        token_user_id = payload.get("user_id")
+
+    except BaseSecurityError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired.",
+        )
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
 
-    validate_image(avatar)
 
+    user_stmt = select(UserModel).where(UserModel.id == token_user_id)
+    user_result = await db.execute(user_stmt)
+    current_user = user_result.scalars().first()
+    if not current_user or not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or not active.",
+        )
+
+    is_admin = current_user.group.name == UserGroupEnum.ADMIN
+    if token_user_id != user_id and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden",
+        )
+
+    ProfileCreateSchema(
+        first_name=first_name,
+        last_name=last_name,
+        gender=gender.value,
+        date_of_birth=date_of_birth,
+        info=info,
+        avatar=avatar
+    )
     stmt = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
     result = await db.execute(stmt)
     if result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Profile already exists for this user.",
+            detail="User already has a profile.",
         )
 
     object_key = f"avatars/{user_id}_{avatar.filename}"
 
     try:
         avatar_url = await s3_client.upload_file(avatar, object_key)
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload image to storage: {str(e)}"
+            detail="Failed to upload avatar. Please try again later."
         )
 
     try:
