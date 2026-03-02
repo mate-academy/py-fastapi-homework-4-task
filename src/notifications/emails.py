@@ -73,6 +73,7 @@ class EmailSender(EmailSenderInterface):
         Args:
             email (str): The recipient's email address.
             activation_link (str): The activation link to be included in the email.
+            activation_link (str): The activation link to be included in the email.
         """
         template = self._env.get_template(self._activation_email_template_name)
         html_content = template.render(email=email, activation_link=activation_link)
