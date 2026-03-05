@@ -17,12 +17,13 @@ class FakeS3Storage(S3StorageInterface):
         """
         self.storage: Dict[str, bytes] = {}
 
-    async def upload_file(self, file_name: str, file_data: Union[bytes, bytearray]) -> None:
+    async def upload_file(self, file_name: str, file_data: Union[bytes, bytearray], content_type: str = "application/octet-stream") -> None:
         """
         Simulates file upload to S3 by storing the file data in a dictionary.
 
         :param file_name: The name of the file to be stored.
         :param file_data: The file data in bytes.
+        :param content_type: The content type of the file. Defaults to "application/octet-stream".
         """
         self.storage[file_name] = file_data
 

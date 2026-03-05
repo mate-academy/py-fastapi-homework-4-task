@@ -6,10 +6,12 @@ services:
     container_name: backend_theater_test
     command: [ "pytest", "-c", "/usr/src/config/pytest.ini",
                "-m", "e2e", "--maxfail=5", "--disable-warnings", "-v", "--tb=short"]
+    env_file:
+      - .env
     environment:
       - PYTHONPATH=/usr/src/fastapi
       - ENVIRONMENT=testing
-      - EMAIL_HOST=mailhog_theater_test
+      - EMAIL_HOST=mailhog
       - EMAIL_PORT=1025
       - EMAIL_HOST_USER=testuser@mate.com
       - EMAIL_HOST_PASSWORD=test_password
@@ -17,12 +19,12 @@ services:
       - MAILHOG_API_PORT=8025
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=some_password
-      - MINIO_HOST=minio-theater-test
+      - MINIO_HOST=minio
       - MINIO_PORT=9000
       - MINIO_STORAGE=theater-storage
     depends_on:
       mailhog:
-        condition: service_started
+        condition: service_healthy
       minio:
         condition: service_healthy
     volumes:
@@ -38,6 +40,11 @@ services:
       - "1025:1025"
     networks:
       - theater_network_test
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8025/api/v2/messages"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   minio:
     image: minio/minio:latest
@@ -49,7 +56,7 @@ services:
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=some_password
-      - MINIO_HOST=minio-theater-test
+      - MINIO_HOST=minio
       - MINIO_PORT=9000
       - MINIO_STORAGE=theater-storage
     volumes:
@@ -74,7 +81,7 @@ services:
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=some_password
-      - MINIO_HOST=minio-theater-test
+      - MINIO_HOST=minio
       - MINIO_PORT=9000
       - MINIO_STORAGE=theater-storage
     networks:

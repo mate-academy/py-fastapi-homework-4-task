@@ -8,7 +8,7 @@ services:
       - "5432:5432"
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-      - postgres_theater_data:/var/lib/postgresql/data/
+      - postgres_theater_data:/var/lib/postgresql/
     networks:
       - theater_network
     healthcheck:
@@ -88,6 +88,11 @@ services:
       MH_AUTH_FILE: /mailhog.auth
     networks:
       - theater_network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8025/api/v2/messages"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   minio:
     image: minio/minio:latest

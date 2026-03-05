@@ -3,6 +3,7 @@ from typing import Union
 import aioboto3
 from botocore.exceptions import (
     BotoCoreError,
+    ClientError,
     NoCredentialsError,
     HTTPClientError,
     ConnectionError
@@ -40,13 +41,19 @@ class S3StorageClient(S3StorageInterface):
             aws_secret_access_key=self._secret_key,
         )
 
-    async def upload_file(self, file_name: str, file_data: Union[bytes, bytearray]) -> None:
+    async def upload_file(
+        self,
+        file_name: str,
+        file_data: Union[bytes, bytearray],
+        content_type: str = "application/octet-stream"
+    ) -> None:
         """
         Asynchronously upload a file to the S3-compatible storage.
 
         Args:
             file_name (str): The name of the file to be stored.
             file_data (Union[bytes, bytearray]): The file data in bytes.
+            content_type (str): The content type of the file. Defaults to "application/octet-stream".
 
         Raises:
             S3ConnectionError: If there is a connection error with S3.
@@ -56,12 +63,25 @@ class S3StorageClient(S3StorageInterface):
             async with self._session.client(
                 "s3", endpoint_url=self._endpoint_url
             ) as client:
-                await client.put_object(
-                    Bucket=self._bucket_name,
-                    Key=file_name,
-                    Body=file_data,
-                    ContentType="image/jpeg"
-                )
+                try:
+                    await client.put_object(
+                        Bucket=self._bucket_name,
+                        Key=file_name,
+                        Body=file_data,
+                        ContentType=content_type,
+                    )
+                except ClientError as e:
+                    error_code = e.response.get("Error", {}).get("Code", "")
+                    if error_code in ("NoSuchBucket", "404"):
+                        await client.create_bucket(Bucket=self._bucket_name)
+                        await client.put_object(
+                            Bucket=self._bucket_name,
+                            Key=file_name,
+                            Body=file_data,
+                            ContentType=content_type,
+                        )
+                    else:
+                        raise
         except (ConnectionError, HTTPClientError, NoCredentialsError) as e:
             raise S3ConnectionError(f"Failed to connect to S3 storage: {str(e)}") from e
         except BotoCoreError as e:

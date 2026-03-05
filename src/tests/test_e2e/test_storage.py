@@ -55,6 +55,7 @@ async def test_create_user_profile(e2e_client, e2e_db_session, settings, s3_clie
     }
 
     profile_response = await e2e_client.post(profile_url, headers=headers, files=files)
+    print("Profile creation response:", profile_response.status_code, profile_response.text)
     assert profile_response.status_code == 201, f"Expected 201, got {profile_response.status_code}"
 
     profile_data = profile_response.json()
