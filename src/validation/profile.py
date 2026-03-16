@@ -1,6 +1,5 @@
 import re
 from datetime import date
-from io import BytesIO
 
 from PIL import Image
 from fastapi import UploadFile
@@ -22,8 +21,8 @@ def validate_image(avatar: UploadFile) -> None:
         raise ValueError("Image size exceeds 1 MB")
 
     try:
-        image = Image.open(BytesIO(contents))
         avatar.file.seek(0)
+        image = Image.open(avatar.file)
         image_format = image.format
         if image_format not in supported_image_formats:
             raise ValueError(f"Unsupported image format: {image_format}. Use one of next: {supported_image_formats}")
@@ -43,3 +42,8 @@ def validate_birth_date(birth_date: date) -> None:
     age = (date.today() - birth_date).days // 365
     if age < 18:
         raise ValueError('You must be at least 18 years old to register.')
+
+
+def validate_info(info: str) -> None:
+    if info.isspace() or not len(info):
+        raise ValueError("Info field cannot be empty or contain only spaces.")

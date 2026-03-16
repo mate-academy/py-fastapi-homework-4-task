@@ -1,4 +1,7 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from dataclasses import Field
+
+from pydantic import BaseModel, EmailStr, field_validator, StringConstraints
+
 
 from database import accounts_validators
 
