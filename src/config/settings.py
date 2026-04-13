@@ -10,6 +10,8 @@ class BaseAppSettings(BaseSettings):
     PATH_TO_DB: str = str(BASE_DIR / "database" / "source" / "theater.db")
     PATH_TO_MOVIES_CSV: str = str(BASE_DIR / "database" / "seed_data" / "imdb_movies.csv")
 
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://127.0.0.1")
+
     PATH_TO_EMAIL_TEMPLATES_DIR: str = str(BASE_DIR / "notifications" / "templates")
     ACTIVATION_EMAIL_TEMPLATE_NAME: str = "activation_request.html"
     ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME: str = "activation_complete.html"
@@ -23,7 +25,7 @@ class BaseAppSettings(BaseSettings):
     EMAIL_HOST_USER: str = os.getenv("EMAIL_HOST_USER", "testuser")
     EMAIL_HOST_PASSWORD: str = os.getenv("EMAIL_HOST_PASSWORD", "test_password")
     EMAIL_USE_TLS: bool = os.getenv("EMAIL_USE_TLS", "False").lower() == "true"
-    MAILHOG_API_PORT: int = os.getenv("MAILHOG_API_PORT", 8025)
+    MAILHOG_API_PORT: int = int(os.getenv("MAILHOG_API_PORT", 8025))
 
     S3_STORAGE_HOST: str = os.getenv("MINIO_HOST", "minio-theater")
     S3_STORAGE_PORT: int = os.getenv("MINIO_PORT", 9000)
