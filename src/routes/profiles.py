@@ -58,7 +58,8 @@ async def user_profile(
         )
 
     if (
-        request_user.id != token_user.id
+        token_user
+        and request_user.id != token_user.id
         and token_user.group.name != UserGroupEnum.ADMIN
     ):
         raise HTTPException(

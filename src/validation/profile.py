@@ -14,7 +14,7 @@ def validate_name(name: str):
 
 
 def validate_info(info: str):
-    if len(info.replace(" ", "")) == 0:
+    if len(info.strip()) == 0:
         raise ValueError("Info field cannot be empty or contain only spaces.")
 
 
