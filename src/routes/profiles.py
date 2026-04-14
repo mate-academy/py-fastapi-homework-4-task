@@ -28,7 +28,7 @@ async def get_current_user(
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, detail="Authorization header is missing"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header is missing"
         )
 
     scheme, _, token = auth_header.partition(" ")
@@ -37,8 +37,6 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Authorization header format. Expected 'Bearer <token>'",
         )
-
-    token = auth_header.split("Bearer ")[1]
 
     try:
         payload = jwt_manager.decode_access_token(token)

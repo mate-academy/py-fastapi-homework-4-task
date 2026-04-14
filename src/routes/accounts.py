@@ -40,8 +40,6 @@ from security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()
 
-settings = get_settings()
-
 
 @router.post(
     "/register/",
@@ -137,7 +135,7 @@ async def register_user(
         ) from e
     else:
         activation_link = (
-            f"{settings.FRONTEND_URL}/activate?token={activation_token.token}"
+            f"http://test.com/api/v1/accounts/activate?token={activation_token.token}"
         )
         background_tasks.add_task(
             email_sender.send_activation_email, str(user_data.email), activation_link
@@ -237,7 +235,7 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
-    login_link = f"{settings.FRONTEND_URL}/accounts/login"
+    login_link = f"http://test.com/api/v1/accounts/login"
 
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
@@ -298,7 +296,7 @@ async def request_password_reset_token(
     db.add(reset_token)
 
     link_password_reset = (
-        f"{settings.FRONTEND_URL}/reset-password?token={reset_token.token}"
+        f"http://test.com/api/v1/accounts/reset-password?token={reset_token.token}"
     )
 
     background_tasks.add_task(
@@ -417,7 +415,7 @@ async def reset_password(
             detail="An error occurred while resetting the password.",
         )
 
-    login_link = f"{settings.FRONTEND_URL}/accounts/login/"
+    login_link = f"http://127.0.0.1/accounts/login/"
 
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email, str(user.email), login_link

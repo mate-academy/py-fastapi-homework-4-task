@@ -1,7 +1,6 @@
 from fastapi import UploadFile, Form, File, HTTPException, status
 from pydantic import BaseModel, field_validator, ConfigDict
 
-from fastapi import APIRouter
 from datetime import date
 
 from validation import (
@@ -10,8 +9,6 @@ from validation import (
     validate_gender,
     validate_birth_date,
 )
-
-router = APIRouter()
 
 
 class ProfileCreateRequestSchema(BaseModel):
