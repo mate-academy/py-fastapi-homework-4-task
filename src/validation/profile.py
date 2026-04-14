@@ -13,6 +13,11 @@ def validate_name(name: str):
         raise ValueError(f'{name} contains non-english letters')
 
 
+def validate_info(info: str):
+    if len(info.replace(" ", "")) == 0:
+        raise ValueError(f"Info field cannot be empty or contain only spaces.")
+
+
 def validate_image(avatar: UploadFile) -> None:
     supported_image_formats = ["JPG", "JPEG", "PNG"]
     max_file_size = 1 * 1024 * 1024
