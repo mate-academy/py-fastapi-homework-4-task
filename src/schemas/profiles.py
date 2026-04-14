@@ -13,6 +13,7 @@ from validation import (
 
 router = APIRouter()
 
+
 class ProfileCreateRequestSchema(BaseModel):
     first_name: str
     last_name: str
@@ -39,6 +40,7 @@ class ProfileCreateRequestSchema(BaseModel):
                 ],
             )
         return value.lower().strip()
+
     @field_validator("last_name")
     @classmethod
     def validate_last_name(cls, value: str) -> str:
@@ -153,7 +155,7 @@ class ProfileCreateRequestSchema(BaseModel):
         )
 
 
-class ProfileCreateResponseSchema(BaseModel):
+class ProfileResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int

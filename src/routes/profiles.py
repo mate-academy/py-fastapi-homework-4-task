@@ -10,15 +10,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from schemas.profiles import ProfileCreateRequestSchema, ProfileCreateResponseSchema
+from schemas.profiles import ProfileCreateRequestSchema, ProfileResponseSchema
 from database import get_db, UserProfileModel, UserModel, UserGroupEnum
 from config.dependencies import get_s3_storage_client, get_jwt_auth_manager
 from security.interfaces import JWTAuthManagerInterface
 from exceptions import TokenExpiredError, InvalidTokenError, S3FileUploadError
 from storages import S3StorageInterface
 
-
 router = APIRouter()
+
 
 async def get_current_user(
     request: Request,
@@ -27,10 +27,14 @@ async def get_current_user(
 ) -> UserModel:
     auth_header = request.headers.get("Authorization")
     if not auth_header:
-        raise HTTPException(status_code=401, detail="Authorization header is missing")
-    if not auth_header.startswith("Bearer "):
         raise HTTPException(
-            status_code=401,
+            status.HTTP_401_UNAUTHORIZED, detail="Authorization header is missing"
+        )
+
+    scheme, _, token = auth_header.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Authorization header format. Expected 'Bearer <token>'",
         )
 
@@ -67,7 +71,11 @@ async def get_current_user(
     return user
 
 
-@router.post("/users/{user_id}/profile/", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/users/{user_id}/profile/",
+    response_model=ProfileResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_profile(
     user_id: int,
     profile_data: Annotated[
@@ -121,7 +129,7 @@ async def create_profile(
     db.add(profile)
     await db.commit()
     avatar_url = await s3_client.get_file_url(profile.avatar)
-    return ProfileCreateResponseSchema(
+    return ProfileResponseSchema(
         id=profile.id,
         user_id=profile.user_id,
         first_name=profile.first_name,
