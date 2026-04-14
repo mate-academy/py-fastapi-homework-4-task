@@ -15,31 +15,31 @@ from storages import S3StorageInterface
 router = APIRouter()
 
 
-@router.post("/users/{user_id}/profile/", response_model=ProfileResponseSchema, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/users/{user_id}/profile/",
+    response_model=ProfileResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+)
 async def user_profile(
-        user_id: int,
-        profile: ProfileRequestSchema = Depends(),
-        token: str = Depends(get_token),
-        db: AsyncSession = Depends(get_db),
-        s3_client: S3StorageInterface = Depends(get_s3_storage_client),
-        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+    user_id: int,
+    profile: ProfileRequestSchema = Depends(),
+    token: str = Depends(get_token),
+    db: AsyncSession = Depends(get_db),
+    s3_client: S3StorageInterface = Depends(get_s3_storage_client),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ):
     try:
         token_data = jwt_manager.decode_access_token(token)
     except (TokenExpiredError, InvalidTokenError):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired."
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired."
         )
     request_user, token_user = [
         (
             await db.execute(
                 select(UserModel)
                 .where(UserModel.id == user_id_)
-                .options(
-                    joinedload(UserModel.group),
-                    joinedload(UserModel.profile)
-                )
+                .options(joinedload(UserModel.group), joinedload(UserModel.profile))
             )
         ).scalar_one_or_none()
         for user_id_ in (user_id, token_data["user_id"])
@@ -57,7 +57,10 @@ async def user_profile(
             detail="User already has a profile.",
         )
 
-    if request_user.id != token_user.id and token_user.group.name != UserGroupEnum.ADMIN:
+    if (
+        request_user.id != token_user.id
+        and token_user.group.name != UserGroupEnum.ADMIN
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile.",
@@ -73,9 +76,7 @@ async def user_profile(
         profile_data["user_id"] = user_id
 
         db_res = await db.execute(
-            insert(UserProfileModel)
-            .values(**profile_data)
-            .returning(UserProfileModel)
+            insert(UserProfileModel).values(**profile_data).returning(UserProfileModel)
         )
         profile_model = db_res.scalar_one()
         await db.commit()
@@ -86,5 +87,5 @@ async def user_profile(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload avatar. Please try again later."
+            detail="Failed to upload avatar. Please try again later.",
         )

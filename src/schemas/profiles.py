@@ -8,7 +8,7 @@ from validation import (
     validate_info,
     validate_image,
     validate_gender,
-    validate_birth_date
+    validate_birth_date,
 )
 
 
@@ -25,13 +25,13 @@ class ProfileResponseSchema(BaseModel):
 
 class ProfileRequestSchema:
     def __init__(
-            self,
-            first_name: str = Form(...),
-            last_name: str = Form(...),
-            gender: str = Form(...),
-            date_of_birth: date = Form(...),
-            info: str = Form(...),
-            avatar: UploadFile = File(...),
+        self,
+        first_name: str = Form(...),
+        last_name: str = Form(...),
+        gender: str = Form(...),
+        date_of_birth: date = Form(...),
+        info: str = Form(...),
+        avatar: UploadFile = File(...),
     ):
         self.first_name = first_name
         self.last_name = last_name
@@ -60,6 +60,5 @@ class ProfileRequestSchema:
                 validator(arg)
         except ValueError as e:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=str(e)
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
             ) from e
