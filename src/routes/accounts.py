@@ -127,13 +127,6 @@ async def register_user(
         activation_token = ActivationTokenModel(user_id=new_user.id)
         db.add(activation_token)
 
-        activation_link = (
-            f"{settings.FRONTEND_URL}/activate?token={activation_token.token}"
-        )
-        background_tasks.add_task(
-            email_sender.send_activation_email, str(user_data.email), activation_link
-        )
-
         await db.commit()
         await db.refresh(new_user)
     except SQLAlchemyError as e:
@@ -143,6 +136,12 @@ async def register_user(
             detail="An error occurred during user creation.",
         ) from e
     else:
+        activation_link = (
+            f"{settings.FRONTEND_URL}/activate?token={activation_token.token}"
+        )
+        background_tasks.add_task(
+            email_sender.send_activation_email, str(user_data.email), activation_link
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
