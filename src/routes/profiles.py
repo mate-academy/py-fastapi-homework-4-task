@@ -28,7 +28,8 @@ async def get_current_user(
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header is missing"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header is missing",
         )
 
     scheme, _, token = auth_header.partition(" ")
