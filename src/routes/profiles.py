@@ -195,6 +195,9 @@ async def create_profile(
             detail=msg,
         )
 
+    profile_data = profile.model_dump()
+    profile_data["avatar"] = None
+
     if avatar is not None:
         try:
             validate_image(avatar)
@@ -205,23 +208,16 @@ async def create_profile(
             )
 
         try:
-            avatar_url = f"avatars/{user_id}_avatar.jpg"
+            avatar_key = f"avatars/{user_id}_avatar.jpg"
             contents = await avatar.read()
 
-            await s3_client.upload_file(file_name=avatar_url, file_data=contents)
-
-            profile_data = profile.model_dump()
-            profile_data["avatar"] = avatar_url
+            await s3_client.upload_file(file_name=avatar_key, file_data=contents)
+            profile_data["avatar"] = avatar_key
         except S3FileUploadError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to upload avatar. Please try again later.",
             )
-    else:
-        avatar_url = None
-
-    profile_data = profile.model_dump()
-    profile_data["avatar"] = avatar_url
 
     new_profile = UserProfileModel(user_id=user_id, **profile_data)
     db.add(new_profile)
