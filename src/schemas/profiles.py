@@ -53,4 +53,4 @@ class ProfileResponseSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
-    avatar: str
+    avatar: str | None = None

@@ -138,7 +138,7 @@ async def register_user(
                            f"email={new_user.email}&token={activation_token.token}")
 
         background_tasks.add_task(
-            email_sender.send_activation_email,
+            email_sender.send_activation_request_email,
             str(new_user.email),
             activation_link,
         )
@@ -302,7 +302,7 @@ async def request_password_reset_token(
     reset_password_link = f"http://127.0.0.1:8000/reset-password?email={user.email}&token={reset_token.token}"
 
     background_tasks.add_task(
-        email_sender.send_password_reset_email,
+        email_sender.send_password_reset_request_email,
         str(user.email),
         reset_password_link,
     )
