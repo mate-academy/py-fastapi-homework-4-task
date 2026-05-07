@@ -1,29 +1,17 @@
 import os
+from typing import Optional
 
-from fastapi import Depends
+from fastapi import Depends, Header, HTTPException, status
+from jose import jwt, JWTError, ExpiredSignatureError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.settings import TestingSettings, Settings, BaseAppSettings
+from config.settings import Settings, BaseAppSettings, get_settings
 from notifications import EmailSenderInterface, EmailSender
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface, S3StorageClient
-
-
-def get_settings() -> BaseAppSettings:
-    """
-    Retrieve the application settings based on the current environment.
-
-    This function reads the 'ENVIRONMENT' environment variable (defaulting to 'developing' if not set)
-    and returns a corresponding settings instance. If the environment is 'testing', it returns an instance
-    of TestingSettings; otherwise, it returns an instance of Settings.
-
-    Returns:
-        BaseAppSettings: The settings instance appropriate for the current environment.
-    """
-    environment = os.getenv("ENVIRONMENT", "developing")
-    if environment == "testing":
-        return TestingSettings()
-    return Settings()
+from database import get_db, UserModel
 
 
 def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> JWTAuthManagerInterface:
@@ -103,3 +91,51 @@ def get_s3_storage_client(
         secret_key=settings.S3_STORAGE_SECRET_KEY,
         bucket_name=settings.S3_BUCKET_NAME
     )
+
+
+def get_token(authorization: Optional[str] = Header(None)) -> str:
+    if authorization is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header is missing"
+        )
+
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Authorization header format. Expected 'Bearer <token>'"
+        )
+
+    return parts[1]
+
+
+async def get_current_user(
+        db: AsyncSession = Depends(get_db),
+        token: str = Depends(get_token),
+        settings: Settings = Depends(get_settings)
+):
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY_ACCESS,
+            algorithms=[settings.JWT_SIGNING_ALGORITHM]
+        )
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired."
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token."
+        )
+
+    user_id = payload.get("user_id")
+    user = await db.scalar(select(UserModel).where(UserModel.id == user_id))
+
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found or not active.")
+
+    return user

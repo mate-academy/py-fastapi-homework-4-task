@@ -13,7 +13,7 @@ def validate_name(name: str):
         raise ValueError(f'{name} contains non-english letters')
 
 
-def validate_image(avatar: UploadFile) -> None:
+def validate_image(avatar: UploadFile):
     supported_image_formats = ["JPG", "JPEG", "PNG"]
     max_file_size = 1 * 1024 * 1024
 
@@ -31,12 +31,12 @@ def validate_image(avatar: UploadFile) -> None:
         raise ValueError("Invalid image format")
 
 
-def validate_gender(gender: str) -> None:
-    if gender not in GenderEnum.__members__.values():
+def validate_gender(gender: str):
+    if gender not in {g.value for g in GenderEnum}:
         raise ValueError(f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}")
 
 
-def validate_birth_date(birth_date: date) -> None:
+def validate_birth_date(birth_date: date):
     if birth_date.year < 1900:
         raise ValueError('Invalid birth date - year must be greater than 1900.')
 
