@@ -8,10 +8,11 @@ from fastapi import (
     status,
     HTTPException
 )
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from config import get_jwt_auth_manager, get_s3_storage_client
-from database.models.accounts import GenderEnum
+from database.models.accounts import GenderEnum, UserGroupEnum
 from exceptions import TokenExpiredError, S3FileUploadError
 from security.http import get_token
 from database import get_db, UserModel, UserProfileModel
@@ -56,9 +57,13 @@ async def create_profile(
 
     # Checking access rights
     if token_user_id != user_id:
-        query_group = await db.execute(select(UserModel).where(UserModel.id == token_user_id))
+        query_group = await db.execute(
+            select(UserModel)
+            .options(joinedload(UserModel.group))
+            .where(UserModel.id == token_user_id)
+        )
         token_user = query_group.scalars().first()
-        if token_user.group_id != 3:
+        if not token_user.has_group(UserGroupEnum.ADMIN):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to edit this profile."
