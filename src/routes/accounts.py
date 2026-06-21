@@ -234,7 +234,7 @@ async def activate_account(
 
     login_link = "http://127.0.0.1:8000/api/v1/accounts/login/"
     background_tasks.add_task(
-        email_sender.send_password_reset_complete_email,
+        email_sender.send_activation_complete_email,
         str(user.email),
         login_link
     )
