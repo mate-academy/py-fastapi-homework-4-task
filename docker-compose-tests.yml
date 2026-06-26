@@ -25,6 +25,8 @@ services:
         condition: service_started
       minio:
         condition: service_healthy
+      minio_mc:
+        condition: service_started
     volumes:
       - ./src:/usr/src/fastapi
     networks:
@@ -67,7 +69,7 @@ services:
       context: .
       dockerfile: docker/minio_mc/Dockerfile
     container_name: minio_mc_theater_test
-    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh" ]
+    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh && sleep infinity" ]
     depends_on:
       minio:
         condition: service_healthy
