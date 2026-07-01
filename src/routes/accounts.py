@@ -352,7 +352,8 @@ async def reset_password(
     user = result.scalars().first()
     if not user or not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email or token."
         )
 
     stmt = select(PasswordResetTokenModel).filter_by(user_id=user.id)
@@ -364,7 +365,8 @@ async def reset_password(
             await db.run_sync(lambda s: s.delete(token_record))
             await db.commit()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email or token."
         )
 
     expires_at = cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc)
@@ -372,19 +374,19 @@ async def reset_password(
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email or token."
         )
 
     try:
-        user.hashed_password = hash_password(data.password)
-        db.add(user)
-        await db.delete(token_record)
+        user.password = data.password
+        await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while resetting the password.",
+            detail="An error occurred while resetting the password."
         )
 
     login_link = "http://example.com/api/v1/accounts/login/"
