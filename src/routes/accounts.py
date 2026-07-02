@@ -1,13 +1,18 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config import get_jwt_auth_manager, get_settings, BaseAppSettings, get_accounts_email_notificator
+from config import (
+    get_jwt_auth_manager,
+    get_settings,
+    BaseAppSettings,
+    get_accounts_email_notificator,
+)
 from database import (
     get_db,
     UserModel,
@@ -15,9 +20,9 @@ from database import (
     UserGroupEnum,
     ActivationTokenModel,
     PasswordResetTokenModel,
-    RefreshTokenModel
+    RefreshTokenModel,
 )
-from exceptions import BaseSecurityError
+from exceptions import BaseSecurityError, TokenExpiredError, InvalidTokenError
 from notifications import EmailSenderInterface
 from schemas import (
     UserRegistrationRequestSchema,
@@ -29,7 +34,7 @@ from schemas import (
     UserLoginResponseSchema,
     UserLoginRequestSchema,
     TokenRefreshRequestSchema,
-    TokenRefreshResponseSchema
+    TokenRefreshResponseSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 
@@ -67,7 +72,12 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSenderInterface = Depends(
+            get_accounts_email_notificator
+        ),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -120,6 +130,17 @@ async def register_user(
 
         await db.commit()
         await db.refresh(new_user)
+        await db.refresh(activation_token)
+
+        activation_link = (
+            f"{settings.BASE_URL}/api/v1/accounts/activate/"
+            f"?email={new_user.email}&token={activation_token.token}"
+        )
+        background_tasks.add_task(
+            email_sender.send_activation_email,
+            new_user.email,
+            activation_link
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
@@ -163,7 +184,12 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSenderInterface = Depends(
+            get_accounts_email_notificator
+        ),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -218,7 +244,16 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
-    return MessageResponseSchema(message="User account activated successfully.")
+    login_link = f"{settings.BASE_URL}/api/v1/accounts/login/"
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        user.email,
+        login_link
+    )
+
+    return MessageResponseSchema(
+        message="User account activated successfully."
+    )
 
 
 @router.post(
@@ -233,7 +268,12 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSenderInterface = Depends(
+            get_accounts_email_notificator
+        ),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -254,17 +294,38 @@ async def request_password_reset_token(
 
     if not user or not user.is_active:
         return MessageResponseSchema(
-            message="If you are registered, you will receive an email with instructions."
+            message=(
+                "If you are registered, you will receive an email "
+                "with instructions."
+            )
         )
 
-    await db.execute(delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id))
+    await db.execute(
+        delete(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == user.id
+        )
+    )
 
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+    await db.refresh(reset_token)
+
+    reset_link = (
+        f"{settings.BASE_URL}/api/v1/accounts/reset-password/complete/"
+        f"?email={user.email}&token={reset_token.token}"
+    )
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        user.email,
+        reset_link
+    )
 
     return MessageResponseSchema(
-        message="If you are registered, you will receive an email with instructions."
+        message=(
+            "If you are registered, you will receive an email "
+            "with instructions."
+        )
     )
 
 
@@ -313,7 +374,12 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        settings: BaseAppSettings = Depends(get_settings),
+        email_sender: EmailSenderInterface = Depends(
+            get_accounts_email_notificator
+        ),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -349,7 +415,10 @@ async def reset_password(
 
     if not token_record or token_record.token != data.token:
         if token_record:
-            await db.run_sync(lambda s: s.delete(token_record))
+            stmt_del = delete(PasswordResetTokenModel).where(
+                PasswordResetTokenModel.id == token_record.id
+            )
+            await db.execute(stmt_del)
             await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -358,7 +427,10 @@ async def reset_password(
 
     expires_at = cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc)
     if expires_at < datetime.now(timezone.utc):
-        await db.run_sync(lambda s: s.delete(token_record))
+        stmt_del = delete(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.id == token_record.id
+        )
+        await db.execute(stmt_del)
         await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -367,8 +439,20 @@ async def reset_password(
 
     try:
         user.password = data.password
-        await db.run_sync(lambda s: s.delete(token_record))
+        await db.flush()
+        stmt_del = delete(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.id == token_record.id
+        )
+        await db.execute(stmt_del)
         await db.commit()
+        await db.refresh(user)
+
+        login_link = f"{settings.BASE_URL}/api/v1/accounts/login/"
+        background_tasks.add_task(
+            email_sender.send_password_reset_complete_email,
+            user.email,
+            login_link
+        )
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
@@ -553,10 +637,15 @@ async def refresh_access_token(
     try:
         decoded_token = jwt_manager.decode_refresh_token(token_data.refresh_token)
         user_id = decoded_token.get("user_id")
-    except BaseSecurityError as error:
+    except TokenExpiredError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(error),
+            detail="Token has expired.",
+        )
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid token.",
         )
 
     stmt = select(RefreshTokenModel).filter_by(token=token_data.refresh_token)

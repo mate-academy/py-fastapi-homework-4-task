@@ -508,8 +508,12 @@ async def test_reset_password_success(client, db_session, seed_user_groups):
         "Unexpected response message for password reset."
     )
 
-    await db_session.refresh(created_user)
-    assert created_user.verify_password(new_password), "Password should be updated successfully in the database."
+    db_session.expire_all()
+    stmt_verify = select(UserModel).where(UserModel.email == registration_payload["email"])
+    result_verify = await db_session.execute(stmt_verify)
+    updated_user = result_verify.scalars().first()
+    assert updated_user is not None, "User should exist in the database after password reset."
+    assert updated_user.verify_password(new_password), "Password should be updated successfully in the database."
 
 
 @pytest.mark.asyncio

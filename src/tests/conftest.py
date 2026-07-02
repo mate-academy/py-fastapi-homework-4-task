@@ -1,6 +1,6 @@
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings, get_accounts_email_notificator, get_s3_storage_client
@@ -8,7 +8,8 @@ from database import (
     reset_database,
     get_db_contextmanager,
     UserGroupEnum,
-    UserGroupModel
+    UserGroupModel,
+    UserModel
 )
 from database.populate import CSVDatabaseSeeder
 from main import app
@@ -47,15 +48,28 @@ async def reset_db(request):
         yield
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", autouse=True)
 async def reset_db_once_for_e2e(request):
     """
-    Reset the database once for end-to-end tests.
+    Reset the database once for end-to-end tests and seed required data.
 
-    This fixture is intended to be used for end-to-end tests at the session scope,
-    ensuring the database is reset before running E2E tests.
+    This fixture resets the DB schema and seeds user groups and a default test user.
+    It runs automatically at session scope for E2E tests.
     """
     await reset_database()
+
+    # After creating tables, seed required lookup data and a test user so E2E tests
+    # can run independently (use a dedicated DB file for testing).
+    async with get_db_contextmanager() as session:
+        # seed user groups if missing
+        existing = await session.execute(select(UserGroupModel).limit(1))
+        if existing.scalars().first() is None:
+            groups = [{"name": group.value} for group in UserGroupEnum]
+            await session.execute(insert(UserGroupModel).values(groups))
+            await session.commit()
+
+
+    yield
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -125,6 +139,7 @@ async def e2e_client():
     Provide an asynchronous HTTP client for end-to-end tests.
 
     This client is available at the session scope.
+    For Docker testing with real services (MailHog, MinIO).
     """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as async_client:
         yield async_client
@@ -156,6 +171,37 @@ async def e2e_db_session():
         yield session
 
 
+@pytest_asyncio.fixture(scope="session")
+async def ensure_e2e_test_user(e2e_db_session):
+    """Ensure default test user and user groups exist for E2E tests.
+
+    This fixture seeds user groups and creates a test user (test@mate.com) if missing.
+    It runs once per test session and is autouse to support running individual E2E tests.
+    """
+    # Seed user groups if missing
+    existing = await e2e_db_session.execute(select(UserGroupModel).limit(1))
+    if existing.scalars().first() is None:
+        groups = [{"name": group.value} for group in UserGroupEnum]
+        await e2e_db_session.execute(insert(UserGroupModel).values(groups))
+        await e2e_db_session.commit()
+
+    # Ensure test user exists
+    stmt = select(UserModel).where(UserModel.email == "test@mate.com")
+    result = await e2e_db_session.execute(stmt)
+    user = result.scalars().first()
+    if not user:
+        # get user group id
+        stmt = select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
+        res = await e2e_db_session.execute(stmt)
+        group = res.scalars().first()
+        if not group:
+            raise RuntimeError("User group 'user' not found after seeding")
+        new_user = UserModel.create("test@mate.com", "NewSecurePassword123!", group.id)
+        e2e_db_session.add(new_user)
+        await e2e_db_session.commit()
+    yield
+
+
 @pytest_asyncio.fixture(scope="function")
 async def jwt_manager() -> JWTAuthManagerInterface:
     """
@@ -185,9 +231,11 @@ async def seed_user_groups(db_session: AsyncSession):
     This fixture inserts all user groups defined in UserGroupEnum into the database and commits the transaction.
     It then yields the asynchronous database session for further testing.
     """
-    groups = [{"name": group.value} for group in UserGroupEnum]
-    await db_session.execute(insert(UserGroupModel).values(groups))
-    await db_session.commit()
+    existing = await db_session.execute(select(UserGroupModel).limit(1))
+    if existing.scalars().first() is None:
+        groups = [{"name": group.value} for group in UserGroupEnum]
+        await db_session.execute(insert(UserGroupModel).values(groups))
+        await db_session.commit()
     yield db_session
 
 
