@@ -1,3 +1,4 @@
+from __future__ import annotations
 import enum
 from datetime import datetime, date, timedelta, timezone
 from typing import List, Optional

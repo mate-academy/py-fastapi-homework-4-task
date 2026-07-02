@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import List
 import datetime
 from enum import Enum
 from typing import Optional
@@ -51,7 +53,7 @@ class GenreModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 
-    movies: Mapped[list["MovieModel"]] = relationship(
+    movies: Mapped[List["MovieModel"]] = relationship(
         "MovieModel",
         secondary=MoviesGenresModel,
         back_populates="genres"
@@ -67,7 +69,7 @@ class ActorModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 
-    movies: Mapped[list["MovieModel"]] = relationship(
+    movies: Mapped[List["MovieModel"]] = relationship(
         "MovieModel",
         secondary=ActorsMoviesModel,
         back_populates="actors"
@@ -84,7 +86,7 @@ class CountryModel(Base):
     code: Mapped[str] = mapped_column(String(3), unique=True, nullable=False)
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    movies: Mapped[list["MovieModel"]] = relationship("MovieModel", back_populates="country")
+    movies: Mapped[List["MovieModel"]] = relationship("MovieModel", back_populates="country")
 
     def __repr__(self):
         return f"<Country(code='{self.code}', name='{self.name}')>"
@@ -96,7 +98,7 @@ class LanguageModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 
-    movies: Mapped[list["MovieModel"]] = relationship(
+    movies: Mapped[List["MovieModel"]] = relationship(
         "MovieModel",
         secondary=MoviesLanguagesModel,
         back_populates="languages"
@@ -123,19 +125,19 @@ class MovieModel(Base):
     country_id: Mapped[int] = mapped_column(ForeignKey("countries.id"), nullable=False)
     country: Mapped["CountryModel"] = relationship("CountryModel", back_populates="movies")
 
-    genres: Mapped[list["GenreModel"]] = relationship(
+    genres: Mapped[List["GenreModel"]] = relationship(
         "GenreModel",
         secondary=MoviesGenresModel,
         back_populates="movies"
     )
 
-    actors: Mapped[list["ActorModel"]] = relationship(
+    actors: Mapped[List["ActorModel"]] = relationship(
         "ActorModel",
         secondary=ActorsMoviesModel,
         back_populates="movies"
     )
 
-    languages: Mapped[list["LanguageModel"]] = relationship(
+    languages: Mapped[List["LanguageModel"]] = relationship(
         "LanguageModel",
         secondary=MoviesLanguagesModel,
         back_populates="movies"

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import insert
