@@ -1,8 +1,8 @@
 from datetime import date
 
-from fastapi import UploadFile, Form, File, HTTPException
+from fastapi import UploadFile, Form, File
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, HttpUrl
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from validation import (
     validate_name,

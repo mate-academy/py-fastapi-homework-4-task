@@ -84,14 +84,12 @@ async def create_profile(
     if existing_profile:
         raise HTTPException(status_code=400, detail="User already has a profile.")
 
-    if not profile_data.avatar.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File is not an image")
-
     filename = f"avatars/{user.id}_avatar.jpg"
     fcontents = await profile_data.avatar.read()
 
     try:
         await s3_client.upload_file(file_name=filename, file_data=fcontents)
+        avatar_url = await s3_client.get_file_url(file_name=filename)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -111,4 +109,6 @@ async def create_profile(
     await db.commit()
     await db.refresh(profile)
 
-    return schemas.ProfileDetailSchema.model_validate(profile)
+    return schemas.ProfileDetailSchema.model_validate(profile).model_copy(
+        update={"avatar": avatar_url}
+    )
