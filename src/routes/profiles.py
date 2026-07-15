@@ -1,14 +1,12 @@
 from datetime import date
 
-from fastapi import APIRouter, status, Depends, HTTPException, UploadFile, \
-    Form, File
-from poetry.console.commands import self
+from fastapi import APIRouter, status, Depends, HTTPException, UploadFile, Form, File
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from config import get_jwt_auth_manager, get_s3_storage_client
+from exceptions import BaseSecurityError
 from schemas.profiles import ProfileResponseSchema, ProfileRequestSchema
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db, UserModel, UserProfileModel
 from security.http import get_token
@@ -18,9 +16,12 @@ from validation import validate_image
 
 router = APIRouter()
 
-@router.post(path="/users/{user_id}/profile/",
-             response_model=ProfileResponseSchema,
-             status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    path="/users/{user_id}/profile/",
+    response_model=ProfileResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_profile(
     user_id: int,
     first_name: str = Form(...),
@@ -35,8 +36,8 @@ async def create_profile(
     jwt_auth_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ):
     try:
-        payload = jwt_auth_manager.decode_token(token)
-    except Exception as e:
+        payload = jwt_auth_manager.decode_access_token(token)
+    except BaseSecurityError as e:
         err_msg = str(e).lower()
         if "expired" in err_msg:
             raise HTTPException(
@@ -55,21 +56,24 @@ async def create_profile(
         )
     requester_id = int(requester_id_str)
 
-    requester_stmt = (select(UserModel)
-                      .options(selectinload(UserModel.group))
-                      .where(UserModel.id == requester_id))
+    requester_stmt = (
+        select(UserModel)
+        .options(selectinload(UserModel.group))
+        .where(UserModel.id == requester_id)
+    )
 
     requester_result = await db.execute(requester_stmt)
     current_user = requester_result.scalar_one_or_none()
-    if not current_user:
+    if not current_user or not current_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or not active.",
         )
     is_admin = False
     if current_user.group:
-        group_name = getattr(current_user.group.name, "name",
-                             str(current_user.group.name))
+        group_name = getattr(
+            current_user.group.name, "name", str(current_user.group.name)
+        )
         is_admin = group_name.upper() == "ADMIN"
 
     if requester_id != user_id and not is_admin:
@@ -99,7 +103,7 @@ async def create_profile(
         )
 
     try:
-            profile_data = ProfileRequestSchema(
+        profile_data = ProfileRequestSchema(
             first_name=first_name,
             last_name=last_name,
             gender=gender,
@@ -123,9 +127,7 @@ async def create_profile(
     file_ext = avatar.filename.split(".")[-1] if avatar.filename else "jpg"
     s3_file_path = f"avatars/{user_id}_avatar.{file_ext}"
     try:
-        file_bytes = await avatar.read()
-        avatar_url = await s3_client.upload_file(file_data=file_bytes,
-                                                 file_name=s3_file_path)
+        avatar_url = await s3_client.get_file_url(file_name=s3_file_path)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

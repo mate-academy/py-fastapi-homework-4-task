@@ -7,7 +7,7 @@ from validation import (
     validate_name,
     validate_image,
     validate_gender,
-    validate_birth_date
+    validate_birth_date,
 )
 
 # Write your code here
@@ -19,7 +19,6 @@ class ProfileRequestSchema(BaseModel):
     gender: str
     date_of_birth: date
     info: str
-
 
     @field_validator("first_name")
     @classmethod
@@ -58,12 +57,12 @@ class ProfileRequestSchema(BaseModel):
 
 
 class ProfileResponseSchema(BaseModel):
+    id: int
+    user_id: int
     first_name: str
     last_name: str
     gender: str
     date_of_birth: date
     info: str
     avatar: str
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
