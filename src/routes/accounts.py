@@ -91,7 +91,7 @@ async def register_user(
         ) from e
 
     activation_link = (
-        f"http://127.0.0.1/api/v1/accounts/activate/"
+        f"{settings.BASE_URL}/api/v1/accounts/activate/"
         f"?email={new_user.email}&token={activation_token.token}"
     )
     background_tasks.add_task(
@@ -114,6 +114,7 @@ async def activate_account(
         background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     stmt = (
         select(ActivationTokenModel)
@@ -148,7 +149,7 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
-    login_link = "http://127.0.0.1/api/v1/accounts/login/"
+    login_link = f"{settings.BASE_URL}/api/v1/accounts/login/"
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         str(user.email),
@@ -169,6 +170,7 @@ async def request_password_reset_token(
         background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     generic_message = MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -189,7 +191,7 @@ async def request_password_reset_token(
     await db.refresh(reset_token)
 
     reset_link = (
-        f"http://127.0.0.1/api/v1/accounts/reset-password/complete/"
+        f"{settings.BASE_URL}/api/v1/accounts/reset-password/complete/"
         f"?email={user.email}&token={reset_token.token}"
     )
     background_tasks.add_task(
@@ -212,6 +214,7 @@ async def reset_password(
         background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     stmt = select(UserModel).filter_by(email=data.email)
     result = await db.execute(stmt)
@@ -255,7 +258,7 @@ async def reset_password(
             detail="An error occurred while resetting the password."
         )
 
-    login_link = "http://127.0.0.1/api/v1/accounts/login/"
+    login_link = f"{settings.BASE_URL}/api/v1/accounts/login/"
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
         str(user.email),
