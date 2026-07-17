@@ -221,7 +221,6 @@ async def register_user(
 )
 async def activate_account(
     activation_data: UserActivationRequestSchema,
-    request: Request,
     background_tasks: BackgroundTasks,
     email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
     db: AsyncSession = Depends(get_db),
@@ -286,7 +285,7 @@ async def activate_account(
     background_tasks.add_task(
         email_notificator.send_activation_complete_email,
         user.email,
-        str(request.url_for("login")),
+        "http://127.0.0.1:8000/accounts/login/",
     )
     return MessageResponseSchema(message="User account activated successfully.")
 
@@ -389,7 +388,6 @@ async def request_password_reset_token(
 )
 async def reset_password(
     data: PasswordResetCompleteRequestSchema,
-    request: Request,
     background_tasks: BackgroundTasks,
     email_notificator: EmailSenderInterface = Depends(get_accounts_email_notificator),
     db: AsyncSession = Depends(get_db),
@@ -455,7 +453,7 @@ async def reset_password(
     background_tasks.add_task(
         email_notificator.send_password_reset_complete_email,
         user.email,
-        str(request.url_for("login")),
+        "http://127.0.0.1:8000/accounts/login/",
     )
     return MessageResponseSchema(message="Password reset successfully.")
 

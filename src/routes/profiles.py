@@ -5,10 +5,11 @@ from PIL import Image
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from starlette import status
 
 from config import get_s3_storage_client
-from database import UserProfileModel, UserModel, get_db
+from database import UserProfileModel, UserModel, get_db, UserGroupModel, UserGroupEnum
 from routes.accounts import get_current_user
 from schemas.profiles import ProfileSchema, ProfileResponseSchema
 from storages import S3StorageInterface
@@ -28,7 +29,8 @@ async def create_user_profile(
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
     db: AsyncSession = Depends(get_db),
 ):
-    user_with_id = await db.get(UserModel, user_id)
+    stmt = select(UserModel).where(UserModel.id == user_id).options(joinedload(UserModel.group))
+    user_with_id = await db.scalar(stmt)
 
     if not user_with_id or not user_with_id.is_active:
         raise HTTPException(
@@ -36,7 +38,7 @@ async def create_user_profile(
             detail="User not found or not active.",
         )
 
-    if user is not user_with_id:
+    if user is not user_with_id and user.group.name == user_with_id.group.name:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile.",
@@ -62,8 +64,7 @@ async def create_user_profile(
             if ext == "jpeg":
                 ext = "jpg"
 
-            unique_suffix = uuid.uuid4().hex[:8]
-            file_name = f"profiles/{user_id}_{unique_suffix}.{ext}"
+            file_name = f"avatars/{user_id}_avatar.{ext}"
 
             profile.avatar = await s3_client.upload_file(
                 file_name=file_name,

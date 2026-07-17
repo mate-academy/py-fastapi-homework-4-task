@@ -77,6 +77,7 @@ class ProfileResponseSchema(BaseModel):
     gender: Optional[str] = None
     date_of_birth: Optional[date] = None
     info: Optional[str] = None
+    user_id: int
 
     class Config:
         from_attributes = True
