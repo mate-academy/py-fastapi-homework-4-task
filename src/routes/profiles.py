@@ -11,6 +11,7 @@ from starlette import status
 
 from config import get_s3_storage_client
 from database import UserProfileModel, UserModel, get_db, UserGroupEnum
+from exceptions import S3FileUploadError
 from routes.accounts import get_current_user
 from schemas.profiles import ProfileRequestSchema, ProfileResponseSchema
 from storages import S3StorageInterface
@@ -30,7 +31,7 @@ async def create_user_profile(
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(UserModel).where(UserModel.id == user_id).options(joinedload(UserModel.group))
+    stmt = select(UserModel).where(UserModel.id == user_id).options(joinedload(UserModel.profile))
     user_with_id = await db.scalar(stmt)
 
     if not user_with_id or not user_with_id.is_active:
@@ -45,10 +46,7 @@ async def create_user_profile(
             detail="You don't have permission to edit this profile.",
         )
 
-    stmt = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
-    profile = await db.scalar(stmt)
-
-    if profile:
+    if user_with_id.profile:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already has a profile.",
@@ -61,9 +59,6 @@ async def create_user_profile(
             avatar_bytes = await user_data.avatar.read()
             ext = Path(user_data.avatar.filename).suffix
 
-            if ext == "jpeg":
-                ext = "jpg"
-
             file_name = f"avatars/{user_id}_avatar{ext}"
 
             await s3_client.upload_file(
@@ -71,12 +66,13 @@ async def create_user_profile(
                 file_data=avatar_bytes
             )
 
-            profile.avatar = await s3_client.get_file_url(file_name)
-    except Exception:
+    except S3FileUploadError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload avatar. Please try again later.",
         )
+    else:
+        profile.avatar = file_name
 
     db.add(profile)
     await db.commit()
