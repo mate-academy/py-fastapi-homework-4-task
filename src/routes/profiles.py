@@ -78,4 +78,7 @@ async def create_user_profile(
     await db.commit()
     await db.refresh(profile)
 
+    profile.avatar = await s3_client.get_file_url(
+        file_name=file_name) if file_name else None
+
     return profile
