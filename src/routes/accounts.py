@@ -3,7 +3,7 @@ from typing import cast
 
 from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer
-from jose import ExpiredSignatureError
+from jose.exceptions import ExpiredSignatureError
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,16 +49,18 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login/")
 
 async def get_current_user(
     request: Request,
-    token: str = Depends(oauth2_scheme),
     jwt_auth: JWTAuthManager = Depends(get_jwt_auth_manager),
     db: AsyncSession = Depends(get_db),
 ) -> UserModel:
     auth_header = request.headers.get("Authorization")
+
     if not auth_header:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization header is missing",
         )
+
+    token: str = auth_header.split()[1]
 
     if not auth_header.startswith("Bearer "):
         raise HTTPException(

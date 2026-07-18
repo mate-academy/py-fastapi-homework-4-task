@@ -9,9 +9,9 @@ from sqlalchemy.orm import joinedload
 from starlette import status
 
 from config import get_s3_storage_client
-from database import UserProfileModel, UserModel, get_db, UserGroupModel, UserGroupEnum
+from database import UserProfileModel, UserModel, get_db, UserGroupEnum
 from routes.accounts import get_current_user
-from schemas.profiles import ProfileSchema, ProfileResponseSchema
+from schemas.profiles import ProfileRequestSchema, ProfileResponseSchema
 from storages import S3StorageInterface
 
 router = APIRouter()
@@ -24,7 +24,7 @@ router = APIRouter()
 )
 async def create_user_profile(
     user_id: int,
-    user_data: ProfileSchema = Depends(ProfileSchema.as_form),
+    user_data: ProfileRequestSchema = Depends(ProfileRequestSchema.as_form),
     user: UserModel = Depends(get_current_user),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
     db: AsyncSession = Depends(get_db),
@@ -38,7 +38,7 @@ async def create_user_profile(
             detail="User not found or not active.",
         )
 
-    if user is not user_with_id and user.group.name == user_with_id.group.name:
+    if user is not user_with_id and user_with_id.group.name == UserGroupEnum.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile.",

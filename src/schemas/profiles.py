@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from fastapi import UploadFile, Form, File
+from fastapi import UploadFile, Form, File, HTTPException
 from pydantic import BaseModel, field_validator
 
 from validation import (
@@ -12,72 +12,80 @@ from validation import (
 )
 
 
-class ProfileSchema(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    avatar: Optional[UploadFile] = None
-    gender: Optional[str] = None
-    date_of_birth: Optional[date] = None
-    info: Optional[str] = None
+class BaseUserProfileSchema(BaseModel):
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
 
     @field_validator("first_name", "last_name")
     @classmethod
-    def validate_name_(cls, v):
-        if v:
-            validate_name(v)
-        return v
+    def validate_names(cls, value: str) -> str:
+        validate_name(value)
+        return value.lower()
 
     @field_validator("gender")
     @classmethod
-    def validate_gender_(cls, v):
-        if v:
-            validate_gender(v)
-        return v
+    def validate_gender(cls, value: str) -> str:
+        validate_gender(value)
+        return value
 
     @field_validator("date_of_birth")
     @classmethod
-    def validate_birth_date_(cls, v):
-        if v:
-            validate_birth_date(v)
-        return v
+    def validate_date_of_birth(cls, value: date) -> date:
+        validate_birth_date(value)
+        return value
+
+    @field_validator("info")
+    @classmethod
+    def validate_info(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Info field cannot be empty or contain only spaces.")
+
+        return value
+
+
+class ProfileRequestSchema(BaseUserProfileSchema):
+    avatar: UploadFile = File(...)
+
+    @classmethod
+    async def as_form(
+            cls,
+            first_name: str = Form(...),
+            last_name: str = Form(...),
+            gender: str = Form(...),
+            date_of_birth: date = Form(...),
+            info: str = Form(...),
+            avatar: UploadFile = File(...),
+    ):
+        try:
+            return cls(
+                first_name=first_name,
+                last_name=last_name,
+                gender=gender,
+                date_of_birth=date_of_birth,
+                info=info,
+                avatar=avatar,
+            )
+        except ValueError as errors:
+            raise HTTPException(
+                status_code=422,
+                detail=str(errors),
+            )
 
     @field_validator("avatar")
     @classmethod
-    def validate_avatar_(cls, v):
-        if v:
-            validate_image(v)
-        return v
-
-    @classmethod
-    def as_form(
-        cls,
-        first_name: Optional[str] = Form(None),
-        last_name: Optional[str] = Form(None),
-        gender: Optional[str] = Form(None),
-        date_of_birth: Optional[str] = Form(None),
-        info: Optional[str] = Form(None),
-        avatar: Optional[UploadFile] = File(None)
-    ):
-        parsed_date = date.fromisoformat(date_of_birth) if date_of_birth else None
-        return cls(
-            first_name=first_name,
-            last_name=last_name,
-            gender=gender,
-            date_of_birth=parsed_date,
-            info=info,
-            avatar=avatar
-        )
+    def validate_avatar(cls, value: UploadFile) -> UploadFile:
+        validate_image(value)
+        return value
 
 
-class ProfileResponseSchema(BaseModel):
+class ProfileResponseSchema(BaseUserProfileSchema):
     id: int
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    avatar: Optional[str] = None
-    gender: Optional[str] = None
-    date_of_birth: Optional[date] = None
-    info: Optional[str] = None
     user_id: int
+    avatar: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
