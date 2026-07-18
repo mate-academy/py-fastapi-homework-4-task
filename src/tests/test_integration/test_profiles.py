@@ -42,8 +42,8 @@ async def test_create_user_profile_with_fake_s3(
     profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
     headers = {"Authorization": f"Bearer {access_token}"}
     files = {
-        "first_name": (None, "John"),
-        "last_name": (None, "Doe"),
+        "first_name": (None, "john"),
+        "last_name": (None, "doe"),
         "gender": (None, "man"),
         "date_of_birth": (None, "1990-01-01"),
         "info": (None, "This is a test profile."),
@@ -133,8 +133,8 @@ async def test_create_user_profile_expired_token(client, jwt_manager):
     img_bytes.seek(0)
 
     files = {
-        "first_name": (None, "John"),
-        "last_name": (None, "Doe"),
+        "first_name": (None, "john"),
+        "last_name": (None, "doe"),
         "gender": (None, "man"),
         "date_of_birth": (None, "1990-01-01"),
         "info": (None, "Test profile."),
@@ -192,8 +192,8 @@ async def test_admin_creates_user_profile(
     profile_url = f"/api/v1/profiles/users/{regular_user.id}/profile/"
     headers = {"Authorization": f"Bearer {admin_token}"}
     files = {
-        "first_name": (None, "John"),
-        "last_name": (None, "Doe"),
+        "first_name": (None, "john"),
+        "last_name": (None, "doe"),
         "gender": (None, "man"),
         "date_of_birth": (None, "1990-01-01"),
         "info": (None, "Test profile."),
@@ -269,8 +269,8 @@ async def test_user_cannot_create_another_user_profile(
     profile_url = f"/api/v1/profiles/users/{user_2.id}/profile/"
     headers = {"Authorization": f"Bearer {user_1_token}"}
     files = {
-        "first_name": (None, "John"),
-        "last_name": (None, "Doe"),
+        "first_name": (None, "john"),
+        "last_name": (None, "doe"),
         "gender": (None, "man"),
         "date_of_birth": (None, "1990-01-01"),
         "info": (None, "Attempting unauthorized profile creation."),
@@ -317,8 +317,8 @@ async def test_inactive_user_cannot_create_profile(
     profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
     headers = {"Authorization": f"Bearer {access_token}"}
     files = {
-        "first_name": (None, "John"),
-        "last_name": (None, "Doe"),
+        "first_name": (None, "john"),
+        "last_name": (None, "doe"),
         "gender": (None, "man"),
         "date_of_birth": (None, "1990-01-01"),
         "info": (None, "Attempting to create a profile while inactive."),
