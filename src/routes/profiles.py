@@ -1,5 +1,6 @@
 import uuid
 from io import BytesIO
+from pathlib import Path
 
 from PIL import Image
 from fastapi import APIRouter, HTTPException, Depends
@@ -38,7 +39,7 @@ async def create_user_profile(
             detail="User not found or not active.",
         )
 
-    if user is not user_with_id and user_with_id.group.name == UserGroupEnum.ADMIN:
+    if user is not user_with_id and user.group.name != UserGroupEnum.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile.",
@@ -58,18 +59,19 @@ async def create_user_profile(
     try:
         if user_data.avatar:
             avatar_bytes = await user_data.avatar.read()
-            img = Image.open(BytesIO(avatar_bytes))
-            ext = img.format.lower()
+            ext = Path(user_data.avatar.filename).suffix
 
             if ext == "jpeg":
                 ext = "jpg"
 
-            file_name = f"avatars/{user_id}_avatar.{ext}"
+            file_name = f"avatars/{user_id}_avatar{ext}"
 
-            profile.avatar = await s3_client.upload_file(
+            await s3_client.upload_file(
                 file_name=file_name,
                 file_data=avatar_bytes
             )
+
+            profile.avatar = await s3_client.get_file_url(file_name)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

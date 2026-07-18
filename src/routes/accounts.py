@@ -3,7 +3,6 @@ from typing import cast
 
 from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer
-from jose.exceptions import ExpiredSignatureError
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +24,7 @@ from database import (
     PasswordResetTokenModel,
     RefreshTokenModel,
 )
-from exceptions import BaseSecurityError, InvalidTokenError
+from exceptions import BaseSecurityError, InvalidTokenError, TokenExpiredError
 from notifications import EmailSenderInterface
 from schemas import (
     UserRegistrationRequestSchema,
@@ -72,7 +71,7 @@ async def get_current_user(
         payload = jwt_auth.decode_access_token(token)
         user_id: str = payload["user_id"]
 
-    except ExpiredSignatureError:
+    except TokenExpiredError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired."
         )
@@ -83,7 +82,8 @@ async def get_current_user(
             detail="Invalid Authorization header format. Expected 'Bearer <token>'",
         )
 
-    user = await db.get(UserModel, user_id)
+    stmt = select(UserModel).where(UserModel.id == user_id).options(joinedload(UserModel.group))
+    user = await db.scalar(stmt)
 
     if not user:
         raise HTTPException(
