@@ -32,12 +32,13 @@ def validate_image(avatar: UploadFile) -> None:
         raise ValueError("Invalid image format")
 
 
-def validate_gender(gender: GenderEnum) -> GenderEnum:
-    if gender not in GenderEnum:
+def validate_gender(gender: str) -> GenderEnum:
+    try:
+        return GenderEnum(gender)
+    except ValueError:
         raise ValueError(
             f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}"
         )
-    return gender
 
 
 def validate_birth_date(birth_date: date) -> date:

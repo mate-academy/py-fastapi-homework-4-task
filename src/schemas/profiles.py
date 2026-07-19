@@ -16,7 +16,7 @@ from validation import (
 class UserProfileCreateSchema(BaseModel):
     first_name: str
     last_name: str
-    gender: GenderEnum
+    gender: str
     date_of_birth: date
     info: str
     avatar: UploadFile
@@ -26,7 +26,7 @@ class UserProfileCreateSchema(BaseModel):
         cls,
         first_name: str = Form(...),
         last_name: str = Form(...),
-        gender: GenderEnum = Form(...),
+        gender: str = Form(...),
         date_of_birth: date = Form(...),
         info: str = Form(...),
         avatar: UploadFile = File(...),
