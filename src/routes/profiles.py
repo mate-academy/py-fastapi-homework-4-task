@@ -86,6 +86,14 @@ async def profile_create(
             status_code=400,
             detail="User already has a profile."
         )
+    try:
+        validate_image(profile_data.avatar)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=str(e)
+        )
+
     file_name = f"avatars/{user_id}_{profile_data.avatar.filename}"
     file_data = await profile_data.avatar.read()
     try:

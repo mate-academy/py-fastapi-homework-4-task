@@ -427,7 +427,7 @@ async def reset_password(
         )
 
     login_link = (
-        "http://127.0.0.1:8000/api/v1/accounts/login/"
+        "http://127.0.0.1:8000/accounts/login/"
     )
 
     background_tasks.add_task(

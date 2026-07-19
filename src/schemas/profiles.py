@@ -1,13 +1,13 @@
 from datetime import date
 
-from fastapi import Form
-from fastapi import UploadFile, Form, File, HTTPException
+from pydantic import ValidationError
+from fastapi.exceptions import RequestValidationError
+from fastapi import UploadFile, Form, File
 from pydantic import BaseModel, field_validator, HttpUrl
 
 from database.models.accounts import GenderEnum
 from validation import (
     validate_name,
-    validate_image,
     validate_gender,
     validate_birth_date
 )
@@ -19,6 +19,7 @@ class UserProfileCreateSchema(BaseModel):
     gender: GenderEnum
     date_of_birth: date
     info: str
+    avatar: UploadFile
 
     @classmethod
     def as_form(
@@ -28,14 +29,19 @@ class UserProfileCreateSchema(BaseModel):
         gender: GenderEnum = Form(...),
         date_of_birth: date = Form(...),
         info: str = Form(...),
+        avatar: UploadFile = File(...),
     ):
-        return cls(
-            first_name=first_name,
-            last_name=last_name,
-            gender=gender,
-            date_of_birth=date_of_birth,
-            info=info,
-        )
+        try:
+            return cls(
+                first_name=first_name,
+                last_name=last_name,
+                gender=gender,
+                date_of_birth=date_of_birth,
+                info=info,
+                avatar=avatar,
+            )
+        except ValidationError as e:
+            raise RequestValidationError(e.errors())
 
     @field_validator("first_name")
     @classmethod
@@ -61,12 +67,13 @@ class UserProfileCreateSchema(BaseModel):
     @classmethod
     def validate_info(cls, value: str):
         if not value.strip():
-            raise ValueError("Info cannot be empty.")
+            raise ValueError("Info field cannot be empty or contain only spaces.")
         return value
 
 
 class UserProfileResponseSchema(BaseModel):
     id: int
+    user_id: int
     first_name: str
     last_name: str
     avatar: HttpUrl | None = None
