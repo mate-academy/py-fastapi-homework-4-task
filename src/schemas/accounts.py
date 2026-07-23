@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, Field
 
 from database import accounts_validators
 
@@ -45,7 +45,7 @@ class UserLoginResponseSchema(BaseModel):
 
 
 class UserRegistrationResponseSchema(BaseModel):
-    id: int
+    id: int = Field(validation_alias="id")
     email: EmailStr
 
     model_config = {
