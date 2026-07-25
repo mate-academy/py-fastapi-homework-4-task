@@ -1,8 +1,7 @@
 import re
 from datetime import date
-from io import BytesIO
 
-from PIL import Image
+
 from fastapi import UploadFile
 
 from database.models.accounts import GenderEnum
@@ -14,20 +13,23 @@ def validate_name(name: str):
 
 
 def validate_image(avatar: UploadFile) -> None:
-    supported_image_formats = ["JPG", "JPEG", "PNG"]
+    allowed_types = {
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+    }
+
     max_file_size = 1 * 1024 * 1024
 
     contents = avatar.file.read()
+
     if len(contents) > max_file_size:
+        avatar.file.seek(0)
         raise ValueError("Image size exceeds 1 MB")
 
-    try:
-        image = Image.open(BytesIO(contents))
-        avatar.file.seek(0)
-        image_format = image.format
-        if image_format not in supported_image_formats:
-            raise ValueError(f"Unsupported image format: {image_format}. Use one of next: {supported_image_formats}")
-    except IOError:
+    avatar.file.seek(0)
+
+    if avatar.content_type not in allowed_types:
         raise ValueError("Invalid image format")
 
 
