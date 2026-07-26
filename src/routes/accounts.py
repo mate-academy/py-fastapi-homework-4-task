@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, BackgroundTasks, Depends, status, HTTPException
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +37,25 @@ from security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()
 
+BASE_FRONTEND_URL = "http://127.0.0.1/accounts"
+
+
+def _build_link(path: str, **params: str) -> str:
+    """
+    Build an absolute link used inside email notifications.
+
+    Args:
+        path (str): The path of the target page, e.g. "activate".
+        **params (str): Optional query parameters appended to the link.
+
+    Returns:
+        str: The absolute URL to include in the email.
+    """
+    link = f"{BASE_FRONTEND_URL}/{path}/"
+    if params:
+        link = f"{link}?{urlencode(params)}"
+    return link
+
 
 @router.post(
     "/register/",
@@ -67,7 +88,9 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -78,7 +101,9 @@ async def register_user(
 
     Args:
         user_data (UserRegistrationRequestSchema): The registration details including email and password.
+        background_tasks (BackgroundTasks): FastAPI background tasks used to send the activation email.
         db (AsyncSession): The asynchronous database session.
+        email_sender (EmailSenderInterface): The email notification service.
 
     Returns:
         UserRegistrationResponseSchema: The newly created user's details.
@@ -117,6 +142,8 @@ async def register_user(
 
         activation_token = ActivationTokenModel(user_id=new_user.id)
         db.add(activation_token)
+        await db.flush()
+        token_value = activation_token.token
 
         await db.commit()
         await db.refresh(new_user)
@@ -127,6 +154,16 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
+        activation_link = _build_link(
+            "activate",
+            email=str(new_user.email),
+            token=str(token_value),
+        )
+        background_tasks.add_task(
+            email_sender.send_activation_email,
+            str(new_user.email),
+            activation_link
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
@@ -163,7 +200,9 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -175,7 +214,9 @@ async def activate_account(
 
     Args:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
+        background_tasks (BackgroundTasks): FastAPI background tasks used to send the confirmation email.
         db (AsyncSession): The asynchronous database session.
+        email_sender (EmailSenderInterface): The email notification service.
 
     Returns:
         MessageResponseSchema: A response message confirming successful activation.
@@ -218,6 +259,13 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
+    login_link = _build_link("login")
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        str(activation_data.email),
+        login_link
+    )
+
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -233,7 +281,9 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -243,7 +293,9 @@ async def request_password_reset_token(
 
     Args:
         data (PasswordResetRequestSchema): The request data containing the user's email.
+        background_tasks (BackgroundTasks): FastAPI background tasks used to send the reset email.
         db (AsyncSession): The asynchronous database session.
+        email_sender (EmailSenderInterface): The email notification service.
 
     Returns:
         MessageResponseSchema: A success message indicating that instructions will be sent.
@@ -261,7 +313,20 @@ async def request_password_reset_token(
 
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
+    await db.flush()
+    token_value = reset_token.token
     await db.commit()
+
+    reset_link = _build_link(
+        "password-reset",
+        email=str(data.email),
+        token=str(token_value),
+    )
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        str(data.email),
+        reset_link
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -313,7 +378,9 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -324,7 +391,9 @@ async def reset_password(
     Args:
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
+        background_tasks (BackgroundTasks): FastAPI background tasks used to send the confirmation email.
         db (AsyncSession): The asynchronous database session.
+        email_sender (EmailSenderInterface): The email notification service.
 
     Returns:
         MessageResponseSchema: A response message indicating successful password reset.
@@ -375,6 +444,13 @@ async def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
         )
+
+    login_link = _build_link("login")
+    background_tasks.add_task(
+        email_sender.send_password_reset_complete_email,
+        str(data.email),
+        login_link
+    )
 
     return MessageResponseSchema(message="Password reset successfully.")
 
