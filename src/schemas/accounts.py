@@ -1,3 +1,4 @@
+import re
 from pydantic import BaseModel, EmailStr, field_validator
 
 from database import accounts_validators
@@ -7,9 +8,7 @@ class BaseEmailPasswordSchema(BaseModel):
     email: EmailStr
     password: str
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
     @field_validator("email")
     @classmethod
@@ -48,9 +47,7 @@ class UserRegistrationResponseSchema(BaseModel):
     id: int
     email: EmailStr
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
 
 class UserActivationRequestSchema(BaseModel):

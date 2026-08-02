@@ -1,7 +1,8 @@
 from exceptions.security import (
     BaseSecurityError,
     InvalidTokenError,
-    TokenExpiredError
+    TokenExpiredError,
+    token_expired_exception_handler,
 )
 from exceptions.email import BaseEmailError
 from exceptions.storage import (
@@ -10,5 +11,5 @@ from exceptions.storage import (
     S3BucketNotFoundError,
     S3FileUploadError,
     S3FileNotFoundError,
-    S3PermissionError
+    S3PermissionError,
 )
