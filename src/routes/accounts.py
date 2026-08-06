@@ -171,6 +171,8 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -225,6 +227,13 @@ async def activate_account(
     user.is_active = True
     await db.delete(token_record)
     await db.commit()
+
+    login_link = "http://127.0.0.1:8000/api/v1/accounts/login/"
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        user.email,
+        login_link,
+    )
 
     return MessageResponseSchema(message="User account activated successfully.")
 
