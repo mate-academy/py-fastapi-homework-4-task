@@ -250,6 +250,8 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -279,6 +281,13 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+
+    reset_link = "http://127.0.0.1:8000/api/v1/accounts/reset-password/complete/"
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        user.email,
+        reset_link,
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
