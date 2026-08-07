@@ -25,7 +25,7 @@ class ProfileRequestFormSchema(BaseModel):
     def validate_first_name_and_last_name(cls, value: str) -> str:
         try:
             validate_name(value)
-            return value
+            return value.lower()
         except ValueError as error:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -37,7 +37,7 @@ class ProfileRequestFormSchema(BaseModel):
     def validate_gender(cls, value: str) -> str:
         try:
             validate_gender(value)
-            return value
+            return value.lower()
         except ValueError as error:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
