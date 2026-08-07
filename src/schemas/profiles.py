@@ -13,7 +13,7 @@ from validation import (
 )
 
 
-class UserProfileCreateSchema(BaseModel):
+class ProfileRequestFormSchema(BaseModel):
     first_name: Optional[str]
     last_name: Optional[str]
     gender: Optional[str]
@@ -60,7 +60,7 @@ class UserProfileCreateSchema(BaseModel):
         date_of_birth: Optional[date] = Form(),
         info: Optional[str] = Form(),
         avatar: Optional[UploadFile] = File(),
-    ) -> UserProfileCreateSchema:
+    ) -> ProfileRequestFormSchema:
         return cls(
             first_name=first_name,
             last_name=last_name,
