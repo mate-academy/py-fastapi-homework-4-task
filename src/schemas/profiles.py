@@ -22,7 +22,7 @@ class ProfileRequestFormSchema(BaseModel):
 
     @field_validator("first_name", "last_name", mode="before")
     @classmethod
-    def validate_first_name_and_last_name(cls, value: str) -> str:
+    def validate_name(cls, value: str) -> str:
         try:
             validate_name(value)
             return value.lower()
