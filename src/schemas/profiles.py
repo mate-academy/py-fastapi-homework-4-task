@@ -2,7 +2,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from fastapi import UploadFile, Form, File, HTTPException
+from fastapi import UploadFile, Form, File, HTTPException, status
 from pydantic import BaseModel, field_validator, HttpUrl
 
 from validation import (
@@ -21,17 +21,17 @@ class ProfileRequestFormSchema(BaseModel):
     info: Optional[str]
     avatar: Optional[UploadFile]
 
-    @field_validator("first_name", mode="before")
+    @field_validator("first_name", "last_name", mode="before")
     @classmethod
-    def validate_first_name(cls, value: str) -> str:
-        validate_name(value)
-        return value
-
-    @field_validator("last_name", mode="before")
-    @classmethod
-    def validate_last_name(cls, value: str) -> str:
-        validate_name(value)
-        return value
+    def validate_first_name_and_last_name(cls, value: str) -> str:
+        try:
+            validate_name(value)
+            return value
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=error.args
+            )
 
     @field_validator("gender", mode="before")
     @classmethod
