@@ -88,7 +88,7 @@ class ProfileRequestFormSchema(BaseModel):
         )
 
 
-class UserProfileResponseSchema(BaseModel):
+class ProfileResponseSchema(BaseModel):
     id: int
     first_name: str
     last_name: str
