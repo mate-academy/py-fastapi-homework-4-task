@@ -87,6 +87,17 @@ class ProfileRequestFormSchema(BaseModel):
             avatar=avatar
         )
 
+    @field_validator("info", mode="before")
+    @classmethod
+    def validate_info(cls, value: str) -> str:
+        if not value or value.count(" ") == len(value):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Info field cannot be empty or contain only spaces."
+            )
+
+        return value
+
 
 class ProfileResponseSchema(BaseModel):
     id: int
