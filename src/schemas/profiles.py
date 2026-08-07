@@ -1,6 +1,5 @@
 from __future__ import annotations
 from datetime import date
-from typing import Optional
 
 from fastapi import UploadFile, Form, File, HTTPException, status
 from pydantic import BaseModel, field_validator, HttpUrl
@@ -14,12 +13,12 @@ from validation import (
 
 
 class ProfileRequestFormSchema(BaseModel):
-    first_name: Optional[str]
-    last_name: Optional[str]
-    gender: Optional[str]
-    date_of_birth: Optional[date]
-    info: Optional[str]
-    avatar: Optional[UploadFile]
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
+    avatar: UploadFile
 
     @field_validator("first_name", "last_name", mode="before")
     @classmethod
@@ -72,12 +71,12 @@ class ProfileRequestFormSchema(BaseModel):
     @classmethod
     def as_form(
         cls,
-        first_name: Optional[str] = Form(),
-        last_name: Optional[str] = Form(),
-        gender: Optional[str] = Form(),
-        date_of_birth: Optional[date] = Form(),
-        info: Optional[str] = Form(),
-        avatar: Optional[UploadFile] = File(),
+        first_name: str = Form(),
+        last_name: str = Form(),
+        gender: str = Form(),
+        date_of_birth: date = Form(),
+        info: str = Form(),
+        avatar: UploadFile = File(),
     ) -> ProfileRequestFormSchema:
         return cls(
             first_name=first_name,
