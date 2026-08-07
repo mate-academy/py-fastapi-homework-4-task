@@ -104,6 +104,6 @@ class ProfileResponseSchema(BaseModel):
     first_name: str
     last_name: str
     gender: str
-    date_of_birth: str
+    date_of_birth: date
     info: str
     avatar: HttpUrl
