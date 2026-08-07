@@ -36,20 +36,38 @@ class ProfileRequestFormSchema(BaseModel):
     @field_validator("gender", mode="before")
     @classmethod
     def validate_gender(cls, value: str) -> str:
-        validate_gender(value)
-        return value
+        try:
+            validate_gender(value)
+            return value
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=error.args
+            )
 
     @field_validator("date_of_birth", mode="after")
     @classmethod
     def validate_date_of_birth(cls, value: date) -> date:
-        validate_birth_date(value)
-        return value
+        try:
+            validate_birth_date(value)
+            return value
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=error.args
+            )
 
     @field_validator("avatar", mode="before")
     @classmethod
     def validate_avatar(cls, value: UploadFile) -> UploadFile:
-        validate_image(value)
-        return value
+        try:
+            validate_image(value)
+            return value
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=error.args
+            )
 
     @classmethod
     def as_form(
