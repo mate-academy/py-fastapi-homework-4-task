@@ -37,7 +37,7 @@ async def create_profile(
     db: AsyncSession = Depends(get_db),
     jwt_auth_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client)
-) -> UserProfileModel:
+) -> ProfileResponseSchema:
     try:
         decode_data = jwt_auth_manager.decode_access_token(token)
     except TokenExpiredError:
@@ -98,10 +98,18 @@ async def create_profile(
             detail="Failed to upload avatar. Please try again later."
         )
 
-    profile.avatar = await s3_client.get_file_url(file_name)
+    profile.avatar = file_name
 
     db.add(profile)
     await db.commit()
     await db.refresh(profile)
 
-    return profile
+    return ProfileResponseSchema(
+        id=profile.id,
+        first_name=profile.first_name,
+        last_name=profile.last_name,
+        gender=profile.gender,
+        date_of_birth=profile.date_of_birth,
+        info=profile.info,
+        avatar=await s3_client.get_file_url(file_name)
+    )
