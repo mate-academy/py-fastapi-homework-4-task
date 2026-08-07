@@ -1,4 +1,6 @@
+from __future__ import annotations
 from datetime import date
+from typing import Optional
 
 from fastapi import UploadFile, Form, File, HTTPException
 from pydantic import BaseModel, field_validator, HttpUrl
@@ -12,12 +14,12 @@ from validation import (
 
 
 class UserProfileCreateSchema(BaseModel):
-    first_name: str
-    last_name: str
-    gender: str
-    date_of_birth: date
-    info: str
-    avatar: UploadFile = File(...)
+    first_name: Optional[str]
+    last_name: Optional[str]
+    gender: Optional[str]
+    date_of_birth: Optional[date]
+    info: Optional[str]
+    avatar: Optional[UploadFile]
 
     @field_validator("first_name", mode="before")
     @classmethod
@@ -48,6 +50,25 @@ class UserProfileCreateSchema(BaseModel):
     def validate_avatar(cls, value: UploadFile) -> UploadFile:
         validate_image(value)
         return value
+
+    @classmethod
+    def as_form(
+        cls,
+        first_name: Optional[str] = Form(),
+        last_name: Optional[str] = Form(),
+        gender: Optional[str] = Form(),
+        date_of_birth: Optional[date] = Form(),
+        info: Optional[str] = Form(),
+        avatar: Optional[UploadFile] = File(),
+    ) -> UserProfileCreateSchema:
+        return cls(
+            first_name=first_name,
+            last_name=last_name,
+            gender=gender,
+            date_of_birth=date_of_birth,
+            info=info,
+            avatar=avatar
+        )
 
 
 class UserProfileResponseSchema(BaseModel):
