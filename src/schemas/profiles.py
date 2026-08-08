@@ -85,6 +85,7 @@ class ProfileCreateSchema(BaseModel):
                 detail=str(error),
             ) from error
 
+
 class ProfileResponseSchema(BaseModel):
     id: int
     user_id: int
