@@ -68,12 +68,12 @@ async def create_profile(
     except TokenExpiredError as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(error),
+            detail="Token has expired.",
         )
     except InvalidTokenError as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(error),
+            detail="Invalid token.",
         )
     token_user_id = token_data.get("user_id")
     user = await db.scalar(select(UserModel).where(UserModel.id == user_id))
@@ -82,15 +82,15 @@ async def create_profile(
         .join(UserModel, UserModel.group_id == UserGroupModel.id)
         .where(UserModel.id == token_user_id)
     )
-    if token_user_id != user.id and token_user_group != UserGroupEnum.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to edit this profile.",
-        )
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or not active.",
+        )
+    if token_user_id != user.id and token_user_group != UserGroupEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to edit this profile.",
         )
 
     profile = await db.scalar(
@@ -107,8 +107,6 @@ async def create_profile(
         await s3_client.upload_file(file_name=file_name, file_data=file_data)
         avatar_url = await s3_client.get_file_url(file_name=file_name)
     except Exception as error:
-        print(type(error))
-        print(error)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload avatar. Please try again later.",
