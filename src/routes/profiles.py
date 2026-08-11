@@ -70,11 +70,7 @@ async def create_profile(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired.",
         )
-    except InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid token.",
-        )
+
     token_user_id = token_data.get("user_id")
     user = await db.scalar(select(UserModel).where(UserModel.id == user_id))
     token_user_group = await db.scalar(
