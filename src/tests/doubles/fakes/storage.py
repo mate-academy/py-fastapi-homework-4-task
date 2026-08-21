@@ -17,7 +17,9 @@ class FakeS3Storage(S3StorageInterface):
         """
         self.storage: Dict[str, bytes] = {}
 
-    async def upload_file(self, file_name: str, file_data: Union[bytes, bytearray]) -> None:
+    async def upload_file(
+        self, file_name: str, file_data: Union[bytes, bytearray]
+    ) -> None:
         """
         Simulates file upload to S3 by storing the file data in a dictionary.
 
@@ -34,3 +36,10 @@ class FakeS3Storage(S3StorageInterface):
         :return: The full fake URL to access the file.
         """
         return f"http://fake-s3.local/{file_name}"
+
+    async def delete_file(self, file_name: str) -> None:
+        """
+        Simulates file deletion from S3 by removing the file from the internal dictionary.
+        :param file_name: The name of the file to be deleted.
+        """
+        self.storage.pop(file_name, None)
