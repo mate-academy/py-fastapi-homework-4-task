@@ -13,6 +13,7 @@ app = FastAPI(
 
 api_version_prefix = "/api/v1"
 
+# Standardize registration using clean, isolated prefixes
 app.include_router(accounts_router, prefix=f"{api_version_prefix}/accounts", tags=["accounts"])
 app.include_router(profiles_router, prefix=f"{api_version_prefix}/profiles", tags=["profiles"])
 app.include_router(movie_router, prefix=f"{api_version_prefix}/theater", tags=["theater"])

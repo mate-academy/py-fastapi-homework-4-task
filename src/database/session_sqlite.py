@@ -1,33 +1,40 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+from database.models.base import Base  # Sync path to your Base metadata module
 
-from config import get_settings
-from database import Base
+# Global placeholders initialized on demand
+_sqlite_engine = None
+_AsyncSQLiteSessionLocal = None
 
-settings = get_settings()
 
-SQLITE_DATABASE_URL = f"sqlite+aiosqlite:///{settings.PATH_TO_DB}"
-sqlite_engine = create_async_engine(SQLITE_DATABASE_URL, echo=False)
-AsyncSQLiteSessionLocal = sessionmaker(  # type: ignore
-    bind=sqlite_engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+def _init_sqlite_factory():
+    """On-demand initialization to break top-level circular imports."""
+    global _sqlite_engine, _AsyncSQLiteSessionLocal
+    if _sqlite_engine is None:
+        # Inline import breaks the top-level initialization loop cleanly
+        from config.dependencies import get_settings
+
+        settings = get_settings()
+        # Fallback to PATH_TO_DB mapping syntax if explicit string URL is not provided
+        database_url = getattr(settings, "DATABASE_URL_SQLITE", f"sqlite+aiosqlite:///{settings.PATH_TO_DB}")
+
+        _sqlite_engine = create_async_engine(database_url, echo=False)
+        _AsyncSQLiteSessionLocal = sessionmaker(  # type: ignore
+            bind=_sqlite_engine,
+            class_=AsyncSession,
+            expire_on_commit=False
+        )
+    return _sqlite_engine, _AsyncSQLiteSessionLocal
 
 
 async def get_sqlite_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Provide an asynchronous database session.
-
-    This function returns an async generator yielding a new database session.
-    It ensures that the session is properly closed after use.
-
-    :return: An asynchronous generator yielding an AsyncSession instance.
     """
-    async with AsyncSQLiteSessionLocal() as session:
+    _, session_factory = _init_sqlite_factory()
+    async with session_factory() as session:
         yield session
 
 
@@ -35,27 +42,17 @@ async def get_sqlite_db() -> AsyncGenerator[AsyncSession, None]:
 async def get_sqlite_db_contextmanager() -> AsyncGenerator[AsyncSession, None]:
     """
     Provide an asynchronous database session using a context manager.
-
-    This function allows for managing the database session within a `with` statement.
-    It ensures that the session is properly initialized and closed after execution.
-
-    :return: An asynchronous generator yielding an AsyncSession instance.
     """
-    async with AsyncSQLiteSessionLocal() as session:
+    _, session_factory = _init_sqlite_factory()
+    async with session_factory() as session:
         yield session
 
 
 async def reset_sqlite_database() -> None:
     """
-    Reset the SQLite database.
-
-    This function drops all existing tables and recreates them.
-    It is useful for testing purposes or when resetting the database is required.
-
-    Warning: This action is irreversible and will delete all stored data.
-
-    :return: None
+    Reset the SQLite database by dropping all existing tables and recreating them.
     """
-    async with sqlite_engine.begin() as conn:
+    engine, _ = _init_sqlite_factory()
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
