@@ -16,7 +16,7 @@ class UserProfileCreateSchema(BaseModel):
     last_name: str
     gender: str
     date_of_birth: date
-    info: str
+    info: str | None
     avatar: UploadFile
 
     @classmethod
@@ -26,7 +26,7 @@ class UserProfileCreateSchema(BaseModel):
         last_name: str = Form(...),
         gender: str = Form(...),
         date_of_birth: date = Form(...),
-        info: str = Form(...),
+        info: str | None = Form(default=None),
         avatar: UploadFile = File(...),
     ) -> "UserProfileCreateSchema":
         return cls(
@@ -45,7 +45,7 @@ class UserProfileCreateSchema(BaseModel):
         validate_birth_date(self.date_of_birth)
         validate_image(self.avatar)
 
-        if not self.info.strip():
+        if self.info is None or not self.info.strip():
             raise ValueError(
                 "Info field cannot be empty or contain only spaces."
             )

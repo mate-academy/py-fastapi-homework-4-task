@@ -1,13 +1,8 @@
-from datetime import date
-
 from fastapi import (
     APIRouter,
     Depends,
-    File,
-    Form,
     Header,
     HTTPException,
-    UploadFile,
     status,
 )
 from sqlalchemy import select
@@ -21,15 +16,12 @@ from exceptions import (
     S3ConnectionError,
     S3FileUploadError,
 )
-from schemas.profiles import UserProfileResponseSchema
+from schemas.profiles import (
+    UserProfileCreateSchema,
+    UserProfileResponseSchema,
+)
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
-from validation import (
-    validate_name,
-    validate_image,
-    validate_gender,
-    validate_birth_date,
-)
 
 
 router = APIRouter()
@@ -65,13 +57,10 @@ def get_token(
 )
 async def create_profile(
     user_id: int,
+    profile_data: UserProfileCreateSchema = Depends(
+        UserProfileCreateSchema.as_form
+    ),
     token: str = Depends(get_token),
-    first_name: str = Form(...),
-    last_name: str = Form(...),
-    gender: str = Form(...),
-    date_of_birth: date = Form(...),
-    info: str | None = Form(default=None),
-    avatar: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
@@ -135,28 +124,21 @@ async def create_profile(
             detail="User already has a profile.",
         )
 
-    if info is None or not info.strip():
+    if profile_data.info is None or not profile_data.info.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Info field cannot be empty or contain only spaces.",
         )
 
     try:
-        validate_name(first_name)
-        validate_name(last_name)
-        validate_gender(gender)
-        validate_birth_date(date_of_birth)
-        validate_image(avatar)
+        profile_data.validate_profile()
     except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
         ) from error
 
-    first_name = first_name.lower()
-    last_name = last_name.lower()
-
-    file_data = await avatar.read()
+    file_data = await profile_data.avatar.read()
 
     avatar_key = f"avatars/{user_id}_avatar.jpg"
 
@@ -176,11 +158,11 @@ async def create_profile(
 
     profile = UserProfileModel(
         user_id=user_id,
-        first_name=first_name,
-        last_name=last_name,
-        gender=GenderEnum(gender),
-        date_of_birth=date_of_birth,
-        info=info,
+        first_name=profile_data.first_name.lower(),
+        last_name=profile_data.last_name.lower(),
+        gender=GenderEnum(profile_data.gender),
+        date_of_birth=profile_data.date_of_birth,
+        info=profile_data.info,
         avatar=avatar_key,
     )
 
