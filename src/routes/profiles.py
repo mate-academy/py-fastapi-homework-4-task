@@ -1,4 +1,10 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -118,15 +124,16 @@ async def create_profile(
             detail="User already has a profile.",
         )
 
+    file_data = await profile_data.avatar.read()
+    avatar_key = f"avatars/{user_id}_avatar.jpg"
+
     try:
-        file_data = await profile_data.avatar.read()
-
-        avatar_key = f"avatars/{user_id}_avatar.jpg"
-
         await s3_client.upload_file(
             file_name=avatar_key,
             file_data=file_data,
         )
+
+        avatar_url = await s3_client.get_file_url(avatar_key)
 
     except (S3ConnectionError, S3FileUploadError) as error:
         raise HTTPException(
@@ -153,4 +160,13 @@ async def create_profile(
         await db.rollback()
         raise
 
-    return profile
+    return UserProfileResponseSchema(
+        id=profile.id,
+        user_id=profile.user_id,
+        first_name=profile.first_name,
+        last_name=profile.last_name,
+        gender=profile.gender.value,
+        date_of_birth=profile.date_of_birth,
+        info=profile.info,
+        avatar=avatar_url,
+    )

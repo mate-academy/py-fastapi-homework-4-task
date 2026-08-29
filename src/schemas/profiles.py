@@ -22,19 +22,31 @@ class UserProfileCreateSchema(BaseModel):
     @field_validator("first_name", "last_name")
     @classmethod
     def validate_names(cls, value: str) -> str:
-        validate_name(value)
+        try:
+            validate_name(value)
+        except ValueError as error:
+            raise ValueError(str(error)) from error
+
         return value
 
     @field_validator("gender")
     @classmethod
     def validate_gender_field(cls, value: str) -> str:
-        validate_gender(value)
+        try:
+            validate_gender(value)
+        except ValueError as error:
+            raise ValueError(str(error)) from error
+
         return value
 
     @field_validator("date_of_birth")
     @classmethod
     def validate_date_of_birth(cls, value: date) -> date:
-        validate_birth_date(value)
+        try:
+            validate_birth_date(value)
+        except ValueError as error:
+            raise ValueError(str(error)) from error
+
         return value
 
     @field_validator("info")
@@ -52,7 +64,11 @@ class UserProfileCreateSchema(BaseModel):
     @field_validator("avatar")
     @classmethod
     def validate_avatar(cls, value: UploadFile) -> UploadFile:
-        validate_image(value)
+        try:
+            validate_image(value)
+        except ValueError as error:
+            raise ValueError(str(error)) from error
+
         return value
 
     @classmethod
