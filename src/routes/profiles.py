@@ -1,13 +1,4 @@
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    Form,
-    Header,
-    HTTPException,
-    UploadFile,
-    status,
-)
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,15 +10,12 @@ from exceptions import (
     S3ConnectionError,
     S3FileUploadError,
 )
-from schemas.profiles import UserProfileResponseSchema
+from schemas.profiles import (
+    UserProfileCreateSchema,
+    UserProfileResponseSchema,
+)
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
-from validation import (
-    validate_name,
-    validate_image,
-    validate_gender,
-    validate_birth_date,
-)
 
 
 router = APIRouter()
@@ -63,13 +51,10 @@ def get_token(
 )
 async def create_profile(
     user_id: int,
+    profile_data: UserProfileCreateSchema = Depends(
+        UserProfileCreateSchema.as_form
+    ),
     token: str = Depends(get_token),
-    first_name: str = Form(...),
-    last_name: str = Form(...),
-    gender: str = Form(...),
-    date_of_birth: str = Form(...),
-    info: str = Form(...),
-    avatar: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
@@ -95,16 +80,10 @@ async def create_profile(
     )
     authenticated_user = result.scalar_one_or_none()
 
-    if authenticated_user is None:
+    if authenticated_user is None or not authenticated_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found.",
-        )
-
-    if not authenticated_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Inactive user.",
+            detail="User not found or not active.",
         )
 
     is_admin = authenticated_user.group_id == 3
@@ -112,7 +91,7 @@ async def create_profile(
     if token_user_id != user_id and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can create a profile only for yourself.",
+            detail="You don't have permission to edit this profile.",
         )
 
     result = await db.execute(
@@ -120,16 +99,10 @@ async def create_profile(
     )
     target_user = result.scalar_one_or_none()
 
-    if target_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
-
-    if not target_user.is_active:
+    if target_user is None or not target_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Inactive user.",
+            detail="User not found or not active.",
         )
 
     result = await db.execute(
@@ -146,33 +119,14 @@ async def create_profile(
         )
 
     try:
-        validate_name(first_name)
-        validate_name(last_name)
-        validate_gender(gender)
+        file_data = await profile_data.avatar.read()
 
-        from datetime import date
+        avatar_key = f"avatars/{user_id}_avatar.jpg"
 
-        parsed_date = date.fromisoformat(date_of_birth)
-        validate_birth_date(parsed_date)
-        validate_image(avatar)
-
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(error),
-        ) from error
-
-    file_data = await avatar.read()
-
-    avatar_key = f"avatars/{user_id}_avatar.jpg"
-
-    try:
         await s3_client.upload_file(
             file_name=avatar_key,
             file_data=file_data,
         )
-
-        avatar_url = await s3_client.get_file_url(avatar_key)
 
     except (S3ConnectionError, S3FileUploadError) as error:
         raise HTTPException(
@@ -182,12 +136,12 @@ async def create_profile(
 
     profile = UserProfileModel(
         user_id=user_id,
-        first_name=first_name.lower(),
-        last_name=last_name.lower(),
-        gender=GenderEnum(gender),
-        date_of_birth=parsed_date,
-        info=info,
-        avatar=avatar_url,
+        first_name=profile_data.first_name.lower(),
+        last_name=profile_data.last_name.lower(),
+        gender=GenderEnum(profile_data.gender),
+        date_of_birth=profile_data.date_of_birth,
+        info=profile_data.info,
+        avatar=avatar_key,
     )
 
     db.add(profile)
