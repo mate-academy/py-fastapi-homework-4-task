@@ -51,6 +51,7 @@ class ProfileCreateSchema(BaseModel):
     @field_validator("avatar")
     @classmethod
     def validate_profile_avatar(cls, value: UploadFile) -> UploadFile:
+        """Validate the uploaded avatar's content, format, and size."""
         validate_image(value)
         return value
 
