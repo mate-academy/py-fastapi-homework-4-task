@@ -22,6 +22,12 @@ from schemas.profiles import (
 )
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
+from validation import (
+    validate_birth_date,
+    validate_gender,
+    validate_image,
+    validate_name,
+)
 
 
 router = APIRouter()
@@ -123,6 +129,31 @@ async def create_profile(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already has a profile.",
         )
+
+    try:
+        if profile_data.info is None:
+            raise ValueError(
+                "Info field cannot be empty or contain only spaces."
+            )
+
+        profile_data.info = profile_data.info.strip()
+
+        if not profile_data.info:
+            raise ValueError(
+                "Info field cannot be empty or contain only spaces."
+            )
+
+        validate_name(profile_data.first_name)
+        validate_name(profile_data.last_name)
+        validate_gender(profile_data.gender)
+        validate_birth_date(profile_data.date_of_birth)
+        validate_image(profile_data.avatar)
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
 
     file_data = await profile_data.avatar.read()
     avatar_key = f"avatars/{user_id}_avatar.jpg"
