@@ -1,3 +1,6 @@
+from io import BytesIO
+
+from PIL import Image
 from sqlalchemy import select
 
 from fastapi import APIRouter, status, Depends, HTTPException
@@ -86,7 +89,27 @@ async def create_profile(
         )
 
     avatar_bytes = await profile_data.avatar.read()
-    avatar_key = f"avatars/{user_id}_avatar.jpg"
+
+    image = Image.open(BytesIO(avatar_bytes))
+    image_format = image.format.lower()
+
+    if image_format == "jpeg":
+        image_format = "jpg"
+
+    avatar_key = f"avatars/{user_id}_avatar.{image_format}"
+
+    try:
+        await s3_client.upload_file(
+            file_name=avatar_key,
+            file_data=avatar_bytes
+        )
+    except (S3ConnectionError, S3FileUploadError):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload avatar. Please try again later.",
+        )
+
+    avatar_url = await s3_client.get_file_url(avatar_key)
 
     try:
         await s3_client.upload_file(file_name=avatar_key, file_data=avatar_bytes)
