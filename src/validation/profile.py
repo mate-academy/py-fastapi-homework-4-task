@@ -9,8 +9,8 @@ from database.models.accounts import GenderEnum
 
 
 def validate_name(name: str):
-    if re.search(r'^[A-Za-z]*$', name) is None:
-        raise ValueError(f'{name} contains non-english letters')
+    if re.fullmatch(r"[A-Za-z]+", name) is None:
+        raise ValueError(f"{name} contains non-english letters")
 
 
 def validate_image(avatar: UploadFile) -> None:
@@ -18,6 +18,8 @@ def validate_image(avatar: UploadFile) -> None:
     max_file_size = 1 * 1024 * 1024
 
     contents = avatar.file.read()
+    avatar.file.seek(0)
+
     if len(contents) > max_file_size:
         raise ValueError("Image size exceeds 1 MB")
 
@@ -32,11 +34,11 @@ def validate_image(avatar: UploadFile) -> None:
 
 
 def validate_gender(gender: str) -> None:
-    if gender not in GenderEnum.__members__.values():
+    if gender not in [item.value for item in GenderEnum]:
         raise ValueError(f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}")
 
 
-def validate_birth_date(birth_date: date) -> None:
+def validate_date_of_birth(birth_date: date) -> None:
     if birth_date.year < 1900:
         raise ValueError('Invalid birth date - year must be greater than 1900.')
 
