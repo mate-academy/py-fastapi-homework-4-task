@@ -33,7 +33,10 @@ from schemas import (
 )
 from security.interfaces import JWTAuthManagerInterface
 
+
 router = APIRouter()
+
+settings = get_settings()
 
 
 @router.post(
@@ -131,7 +134,7 @@ async def register_user(
         ) from e
     else:
         activation_link = (
-            f"http://127.0.0.1/accounts/activate/"
+            f"{settings.BASE_URL}/accounts/activate/"
             f"?token={activation_token.token}&email={new_user.email}"
         )
         background_tasks.add_task(
@@ -232,7 +235,7 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = f"{settings.BASE_URL}/accounts/login/"
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
         str(user.email),
@@ -288,7 +291,7 @@ async def request_password_reset_token(
     await db.refresh(reset_token)
 
     reset_link = (
-        f"http://127.0.0.1/accounts/password-reset/complete/"
+        f"{settings.BASE_URL}/accounts/password-reset/complete/"
         f"?token={reset_token.token}&email={user.email}"
     )
     background_tasks.add_task(
@@ -412,7 +415,7 @@ async def reset_password(
             detail="An error occurred while resetting the password."
         )
 
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = f"{settings.BASE_URL}/accounts/login/"
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
         str(user.email),
