@@ -36,7 +36,7 @@ def validate_gender(gender: str) -> None:
         raise ValueError(f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}")
 
 
-def validate_birth_date(birth_date: date) -> None:
+def validate_date_of_birth(birth_date: date) -> None:
     if birth_date.year < 1900:
         raise ValueError('Invalid birth date - year must be greater than 1900.')
 
