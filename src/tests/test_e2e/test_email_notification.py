@@ -363,11 +363,12 @@ async def test_reset_password(e2e_client, e2e_db_session, settings):
     user_result = await e2e_db_session.execute(stmt_user)
     updated_user = user_result.scalars().first()
     assert updated_user is not None, f"User with email {user_email} not found!"
+
+    await e2e_db_session.refresh(updated_user)
+
     assert updated_user.verify_password(
         new_password
     ), "Password was not updated successfully!"
-
-    await e2e_db_session.commit()
 
     mailhog_url = (
         f"http://{settings.EMAIL_HOST}:{settings.MAILHOG_API_PORT}/api/v2/messages"
