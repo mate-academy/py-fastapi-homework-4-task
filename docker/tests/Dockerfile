@@ -26,8 +26,9 @@ RUN poetry config virtualenvs.create false
 WORKDIR /usr/src/poetry
 
 # Install dependencies with Poetry
-RUN poetry lock
-RUN poetry install --no-root --only main
+RUN poetry install --no-root --only main --no-interaction && \
+    python -m ensurepip --upgrade && \
+    python -m pip install --upgrade pip pytest
 
 # Selecting a working directory
 WORKDIR /usr/src/fastapi
