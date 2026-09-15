@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import cast
 from urllib.parse import urlencode
+from uuid import uuid4
 
 from fastapi import (
     Request,
@@ -557,7 +558,12 @@ async def login_user(
             detail="User account is not activated.",
         )
 
-    jwt_refresh_token = jwt_manager.create_refresh_token({"user_id": user.id})
+    jwt_refresh_token = jwt_manager.create_refresh_token(
+        {
+            "user_id": user.id,
+            "jti": str(uuid4()),
+        }
+    )
 
     try:
         refresh_token = RefreshTokenModel.create(
