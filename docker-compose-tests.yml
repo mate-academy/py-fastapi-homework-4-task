@@ -20,6 +20,7 @@ services:
       - MINIO_HOST=minio-theater-test
       - MINIO_PORT=9000
       - MINIO_STORAGE=theater-storage
+      - BASE_URL=http://127.0.0.1:8000
     depends_on:
       mailhog:
         condition: service_started

@@ -48,19 +48,17 @@ from schemas import (
 from security.interfaces import JWTAuthManagerInterface
 
 
-BASE_URL = "http://127.0.0.1:8000"
-
-
 router = APIRouter()
 
 
 def build_url(
     request: Request,
+    base_url: str,
     route_name: str,
     **query_params: str,
 ) -> str:
     path = request.app.url_path_for(route_name)
-    url = f"{BASE_URL}{path}"
+    url = f"{base_url}{path}"
 
     if query_params:
         url = f"{url}?{urlencode(query_params)}"
@@ -102,6 +100,7 @@ async def register_user(
     background_tasks: BackgroundTasks,
     user_data: UserRegistrationRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     email_notificator: EmailSenderInterface = Depends(
         get_accounts_email_notificator
     ),
@@ -115,9 +114,11 @@ async def register_user(
     In case of any unexpected issues during the creation process, an HTTP 500 error is returned.
 
     Args:
+        request (Request): The incoming HTTP request.
         background_tasks (BackgroundTasks): Background tasks used to send the account activation email.
         user_data (UserRegistrationRequestSchema): The registration details including email and password.
         db (AsyncSession): The asynchronous database session.
+        settings (BaseAppSettings): Application settings used during user registration.
         email_notificator (EmailSenderInterface): Email sender used to send the account activation email.
 
     Returns:
@@ -168,8 +169,9 @@ async def register_user(
         ) from e
     else:
         activation_link = build_url(
-            request,
-            "activate_account",
+            request=request,
+            base_url=settings.BASE_URL,
+            route_name="activate_account",
             token=activation_token.token,
         )
 
@@ -217,6 +219,7 @@ async def activate_account(
     background_tasks: BackgroundTasks,
     activation_data: UserActivationRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     email_notificator: EmailSenderInterface = Depends(
         get_accounts_email_notificator
     ),
@@ -230,9 +233,11 @@ async def activate_account(
     or if the account is already active, an HTTP 400 error is raised.
 
     Args:
+        request (Request): The incoming HTTP request.
         background_tasks (BackgroundTasks): Background tasks used to send the account activation confirmation email.
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
         db (AsyncSession): The asynchronous database session.
+        settings (BaseAppSettings): Application settings used during account activation.
         email_notificator (EmailSenderInterface): Email sender used to send the account activation confirmation email.
 
     Returns:
@@ -279,7 +284,11 @@ async def activate_account(
     background_tasks.add_task(
         email_notificator.send_activation_complete_email,
         email=str(user.email),
-        login_link=build_url(request, "login_user"),
+        login_link=build_url(
+            request=request,
+            base_url=settings.BASE_URL,
+            route_name="login_user"
+        ),
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -300,6 +309,7 @@ async def request_password_reset_token(
     background_tasks: BackgroundTasks,
     data: PasswordResetRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     email_notificator: EmailSenderInterface = Depends(
         get_accounts_email_notificator
     ),
@@ -311,9 +321,11 @@ async def request_password_reset_token(
     Always responds with a success message to avoid leaking user information.
 
     Args:
+        request (Request): The incoming HTTP request.
         background_tasks (BackgroundTasks): Background tasks used to send the password reset email.
         data (PasswordResetRequestSchema): The request data containing the user's email.
         db (AsyncSession): The asynchronous database session.
+        settings (BaseAppSettings): Application settings used for configuring the password reset process.
         email_notificator (EmailSenderInterface): Email sender used to send the password reset email.
 
     Returns:
@@ -335,8 +347,9 @@ async def request_password_reset_token(
     await db.commit()
 
     reset_link = build_url(
-        request,
-        "reset_password",
+        request=request,
+        base_url=settings.BASE_URL,
+        route_name="reset_password",
         token=reset_token.token,
     )
 
@@ -399,6 +412,7 @@ async def reset_password(
     background_tasks: BackgroundTasks,
     data: PasswordResetCompleteRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     email_notificator: EmailSenderInterface = Depends(
         get_accounts_email_notificator
     ),
@@ -410,10 +424,12 @@ async def reset_password(
     Deletes the token after a successful password reset.
 
     Args:
+        request (Request): The incoming HTTP request.
         background_tasks (BackgroundTasks): Background tasks used to send the password reset confirmation email.
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
         db (AsyncSession): The asynchronous database session.
+        settings (BaseAppSettings): Application settings used during the password reset process.
         email_notificator (EmailSenderInterface): Email sender used to send the password reset confirmation email.
 
     Returns:
@@ -470,7 +486,11 @@ async def reset_password(
     background_tasks.add_task(
         email_notificator.send_password_reset_complete_email,
         email=str(user.email),
-        login_link=build_url(request, "login_user"),
+        login_link=build_url(
+            request=request,
+            base_url=settings.BASE_URL,
+            route_name="login_user"
+        ),
     )
 
     return MessageResponseSchema(message="Password reset successfully.")
