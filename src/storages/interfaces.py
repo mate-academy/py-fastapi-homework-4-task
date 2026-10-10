@@ -24,3 +24,10 @@ class S3StorageInterface(ABC):
         :return: The full URL to access the file.
         """
         pass
+
+    async def delete_file(self, file_name: str) -> None:
+        """
+        Deletes a file from the storage.
+
+        """
+        raise NotImplementedError
