@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -17,6 +19,8 @@ from schemas.profiles import ProfileCreateSchema, ProfileResponseSchema
 from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from storages import S3StorageInterface
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -103,6 +107,10 @@ async def create_profile(
         await db.refresh(profile)
     except SQLAlchemyError:
         await db.rollback()
+        try:
+            await s3_client.delete_file(avatar_key)
+        except BaseS3Error:
+            logger.exception("Failed to remove uploaded avatar %s", avatar_key)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while creating the profile.",

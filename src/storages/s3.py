@@ -8,7 +8,7 @@ from botocore.exceptions import (
     ConnectionError
 )
 
-from exceptions import S3ConnectionError, S3FileUploadError
+from exceptions import S3ConnectionError, S3FileUploadError, BaseS3Error
 from storages import S3StorageInterface
 
 
@@ -78,3 +78,17 @@ class S3StorageClient(S3StorageInterface):
             str: The full URL to access the file.
         """
         return f"{self._endpoint_url}/{self._bucket_name}/{file_name}"
+
+    async def delete_file(self, file_name: str) -> None:
+        try:
+            async with self._session.client(
+                "s3", endpoint_url=self._endpoint_url
+            ) as client:
+                await client.delete_object(
+                    Bucket=self._bucket_name,
+                    Key=file_name
+                )
+        except (ConnectionError, HTTPClientError, NoCredentialsError) as e:
+            raise S3ConnectionError(f"Failed to connect to S3 storage: {str(e)}") from e
+        except BotoCoreError as e:
+            raise BaseS3Error(f"Failed to delete from S3 storage: {str(e)}") from e

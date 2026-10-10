@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, status, HTTPException
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,6 +70,7 @@ async def register_user(
         background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -81,9 +82,10 @@ async def register_user(
 
     Args:
         user_data (UserRegistrationRequestSchema): The registration details including email and password.
-        background_tasks (BackgroundTasks): Used to send the activation email after the response.
+        background_tasks (BackgroundTasks): Used to send the email after the response is returned.
         db (AsyncSession): The asynchronous database session.
         email_sender (EmailSenderInterface): The email notification service.
+        settings (BaseAppSettings): The application settings (provides BASE_URL for email links).
 
     Returns:
         UserRegistrationResponseSchema: The newly created user's details.
@@ -132,7 +134,7 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
-        activation_link = "http://127.0.0.1/accounts/activate/"
+        activation_link = f"{settings.BASE_URL}/accounts/activate/"
 
         background_tasks.add_task(
             email_sender.send_activation_email,
@@ -179,6 +181,7 @@ async def activate_account(
         background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -191,9 +194,10 @@ async def activate_account(
 
     Args:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
-        background_tasks (BackgroundTasks): Used to send the confirmation email after the response.
+        background_tasks (BackgroundTasks): Used to send the email after the response is returned.
         db (AsyncSession): The asynchronous database session.
         email_sender (EmailSenderInterface): The email notification service.
+        settings (BaseAppSettings): The application settings (provides BASE_URL for email links).
 
     Returns:
         MessageResponseSchema: A response message confirming successful activation.
@@ -236,7 +240,7 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = f"{settings.BASE_URL}/accounts/login/"
 
     background_tasks.add_task(
         email_sender.send_activation_complete_email,
@@ -262,19 +266,21 @@ async def request_password_reset_token(
         background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
 
     If the user exists and is active, invalidates any existing password reset tokens and generates a new one.
-    A password reset email is sent in the background only in that case.
+    A reset email is sent in the background only for existing active users.
     Always responds with a success message to avoid leaking user information.
 
     Args:
         data (PasswordResetRequestSchema): The request data containing the user's email.
-        background_tasks (BackgroundTasks): Used to send the reset email after the response.
+        background_tasks (BackgroundTasks): Used to send the email after the response is returned.
         db (AsyncSession): The asynchronous database session.
         email_sender (EmailSenderInterface): The email notification service.
+        settings (BaseAppSettings): The application settings (provides BASE_URL for email links).
 
     Returns:
         MessageResponseSchema: A success message indicating that instructions will be sent.
@@ -294,7 +300,7 @@ async def request_password_reset_token(
     db.add(reset_token)
     await db.commit()
 
-    reset_link = "http://127.0.0.1/accounts/password-reset-complete/"
+    reset_link = f"{settings.BASE_URL}/accounts/password-reset-complete/"
 
     background_tasks.add_task(
         email_sender.send_password_reset_email,
@@ -355,6 +361,7 @@ async def reset_password(
         background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        settings: BaseAppSettings = Depends(get_settings),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -365,9 +372,10 @@ async def reset_password(
     Args:
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
-        background_tasks (BackgroundTasks): Used to send the confirmation email after the response.
+        background_tasks (BackgroundTasks): Used to send the email after the response is returned.
         db (AsyncSession): The asynchronous database session.
         email_sender (EmailSenderInterface): The email notification service.
+        settings (BaseAppSettings): The application settings (provides BASE_URL for email links).
 
     Returns:
         MessageResponseSchema: A response message indicating successful password reset.
@@ -419,7 +427,7 @@ async def reset_password(
             detail="An error occurred while resetting the password."
         )
 
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = f"{settings.BASE_URL}/accounts/login/"
 
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
