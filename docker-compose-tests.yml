@@ -40,9 +40,8 @@ services:
       - theater_network_test
 
   minio:
-    image: minio/minio:latest
+    image: bitnamilegacy/minio:latest
     container_name: minio-theater-test
-    command: server --console-address ":9001" /data
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -53,7 +52,7 @@ services:
       - MINIO_PORT=9000
       - MINIO_STORAGE=theater-storage
     volumes:
-      - minio_data_test:/data
+      - minio_data_test:/bitnami/minio/data
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 10s
