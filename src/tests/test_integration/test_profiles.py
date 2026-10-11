@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -464,7 +464,7 @@ async def test_profile_creation_invalid_name(
 
     access_token = jwt_manager.create_access_token({"user_id": user.id})
 
-    profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
+    profile_url = "/api/v1/profiles/users/1/profile/"
     headers = {"Authorization": f"Bearer {access_token}"}
     files = {
         "first_name": (None, first_name),
@@ -499,7 +499,7 @@ async def test_profile_creation_invalid_avatar_format(db_session, client, jwt_ma
 
     access_token = jwt_manager.create_access_token({"user_id": user.id})
 
-    profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
+    profile_url = "/api/v1/profiles/users/1/profile/"
     headers = {"Authorization": f"Bearer {access_token}"}
     files = {
         "first_name": (None, "John"),
@@ -539,7 +539,7 @@ async def test_profile_creation_avatar_too_large(db_session, client, jwt_manager
     img.save(img_bytes, format="JPEG")
     img_bytes.seek(0)
 
-    profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
+    profile_url = "/api/v1/profiles/users/1/profile/"
     headers = {"Authorization": f"Bearer {access_token}"}
     files = {
         "first_name": (None, "John"),
@@ -573,7 +573,7 @@ async def test_profile_creation_invalid_gender(db_session, client, jwt_manager):
 
     access_token = jwt_manager.create_access_token({"user_id": user.id})
 
-    profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
+    profile_url = "/api/v1/profiles/users/1/profile/"
     headers = {"Authorization": f"Bearer {access_token}"}
     files = {
         "first_name": (None, "John"),
@@ -611,7 +611,7 @@ async def test_profile_creation_invalid_birth_date(db_session, client, jwt_manag
 
     access_token = jwt_manager.create_access_token({"user_id": user.id})
 
-    profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
+    profile_url = "/api/v1/profiles/users/1/profile/"
     headers = {"Authorization": f"Bearer {access_token}"}
     files = {
         "first_name": (None, "John"),
@@ -645,7 +645,7 @@ async def test_profile_creation_empty_info(db_session, client, jwt_manager, info
 
     access_token = jwt_manager.create_access_token({"user_id": user.id})
 
-    profile_url = f"/api/v1/profiles/users/{user.id}/profile/"
+    profile_url = "/api/v1/profiles/users/1/profile/"
     headers = {"Authorization": f"Bearer {access_token}"}
     files = {
         "first_name": (None, "John"),
