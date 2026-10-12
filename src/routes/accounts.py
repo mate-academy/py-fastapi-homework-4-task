@@ -126,8 +126,16 @@ async def register_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during user creation."
         ) from e
-    else:
-        return UserRegistrationResponseSchema.model_validate(new_user)
+
+    activate_link = f"http://127.0.0.1:8000/api/v1/accounts/activate/{activation_token.token}"
+
+    background_tasks.add_task(
+        email_sender.send_activation_email,
+        new_user.email,
+        activate_link,
+    )
+
+    return UserRegistrationResponseSchema.model_validate(new_user)
 
 
 @router.post(
@@ -218,6 +226,14 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
+    login_ling = "http://127.0.0.1:8000/api/v1/accounts/login/"
+
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        user.email,
+        login_ling,
+    )
+
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -262,6 +278,14 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+
+    activate_link = f"http://127.0.0.1:8000/api/v1/accounts/reset-password/{reset_token.token}"
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        user.email,
+        activate_link,
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -375,6 +399,14 @@ async def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
         )
+
+    login_ling = "http://127.0.0.1:8000/api/v1/accounts/reset-password/complete/"
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_complete_email,
+        user.email,
+        login_ling,
+    )
 
     return MessageResponseSchema(message="Password reset successfully.")
 
