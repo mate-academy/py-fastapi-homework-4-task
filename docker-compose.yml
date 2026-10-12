@@ -1,6 +1,6 @@
 services:
   db:
-    image: 'postgres:latest'
+    image: postgres:16-alpine
     container_name: postgres_theater
     env_file:
       - .env
@@ -90,7 +90,7 @@ services:
       - theater_network
 
   minio:
-    image: minio/minio:latest
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     container_name: minio-theater
     command: server --console-address ":9001" /data
     ports:
