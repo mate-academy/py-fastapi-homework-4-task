@@ -47,51 +47,49 @@ async def profile_user(
         jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
         db: AsyncSession = Depends(get_db),
 ):
-
     try:
         payload = jwt_manager.decode_access_token(token)
     except Exception as e:
         if e.__class__.__name__ == "TokenExpiredError" or "expired" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has expired.",
-            )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
 
-    user = payload.get("user_id")
+    token_user_id = payload.get("user_id")
 
-    is_admin = payload.get("group_id") == 3
+    # 1. Шукаємо того, хто робить запит (з токена)
+    stmt_requester = select(UserModel).where(UserModel.id == token_user_id)
+    requester_res = await db.execute(stmt_requester)
+    requester = requester_res.scalar_one_or_none()
 
-    if user != user_id and not is_admin:
+    if not requester:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User from token not found")
+
+    # 2. Перевіряємо, чи він адмін (група 3)
+    is_admin = requester.group_id == 3
+
+    if token_user_id != user_id and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile.",
         )
 
+    # 3. Шукаємо цільового користувача, якому створюють профіль
     search_user = select(UserModel).where(UserModel.id == user_id)
     result = await db.execute(search_user)
     db_user = result.scalar_one_or_none()
 
     if db_user is None or not db_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or not active.",
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or not active.")
 
     profile = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
     result_profile = await db.execute(profile)
     user_profile = result_profile.scalar_one_or_none()
 
     if user_profile:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already has a profile.",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already has a profile.")
 
     file_key = f"avatars/{user_id}_avatar.jpg"
+
     try:
         avatar = await user_data.avatar.read()
         await s3_client.upload_file(

@@ -24,7 +24,7 @@ class ProfileSchema(BaseModel):
     @classmethod
     def check_name(cls, value: str):
         validate_name(value)
-        return value
+        return value.lower()
 
     @field_validator("gender")
     @classmethod
