@@ -5,8 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from storages import S3StorageClient
 from security.token_manager import JWTAuthManagerInterface
-from config import get_s3_storage_client
-from security.dependencies import get_jwt_auth_manager
+from config import get_s3_storage_client, get_jwt_auth_manager
 
 from database import (
     get_db,
