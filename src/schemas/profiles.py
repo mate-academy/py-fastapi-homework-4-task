@@ -43,8 +43,9 @@ class ProfileSchema(BaseModel):
 
     @field_validator("avatar")
     @classmethod
-    def check_image(cls, value):
-        return validate_image(value)
+    def check_image(cls, value: UploadFile):
+        validate_image(value)
+        return value
 
     @classmethod
     def as_form(

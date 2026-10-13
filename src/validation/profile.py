@@ -13,24 +13,26 @@ def validate_name(name: str):
         raise ValueError(f"{name} contains non-english letters")
 
 
-def validate_image(avatar: UploadFile) -> None:
-    supported_image_formats = ["JPG", "JPEG", "PNG"]
-    max_file_size = 1 * 1024 * 1024
+def validate_image(avatar: UploadFile) -> UploadFile:
+    max_file_size = 1 * 1024 * 1024  # 1 MB
+    allowed_content_types = ["image/jpeg", "image/png", "image/jpg"]
+    allowed_extensions = (".jpg", ".jpeg", ".png")
 
+    # Зчитуємо байти для перевірки розміру
     contents = avatar.file.read()
+    # Обов'язково повертаємо каретку на початок
+    avatar.file.seek(0)
+
     if len(contents) > max_file_size:
         raise ValueError("Image size exceeds 1 MB")
 
-    try:
-        image = Image.open(BytesIO(contents))
-        avatar.file.seek(0)
-        image_format = image.format
-        if image_format not in supported_image_formats:
-            raise ValueError(
-                f"Unsupported image format: {image_format}. Use one of next: {supported_image_formats}"
-            )
-    except IOError:
+    content_type_valid = avatar.content_type in allowed_content_types
+    extension_valid = avatar.filename and avatar.filename.lower().endswith(allowed_extensions)
+
+    if not content_type_valid or not extension_valid:
         raise ValueError("Invalid image format")
+
+    return avatar
 
 
 def validate_gender(gender: str) -> None:
