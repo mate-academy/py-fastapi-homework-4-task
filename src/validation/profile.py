@@ -18,9 +18,7 @@ def validate_image(avatar: UploadFile) -> UploadFile:
     allowed_content_types = ["image/jpeg", "image/png", "image/jpg"]
     allowed_extensions = (".jpg", ".jpeg", ".png")
 
-    # Зчитуємо байти для перевірки розміру
     contents = avatar.file.read()
-    # Обов'язково повертаємо каретку на початок
     avatar.file.seek(0)
 
     if len(contents) > max_file_size:

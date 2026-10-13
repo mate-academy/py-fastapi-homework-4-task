@@ -1,5 +1,5 @@
 from jose import ExpiredSignatureError, JWTError, jwt
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from schemas.profiles import ProfileResponseSchema, ProfileSchema
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,36 +16,40 @@ from database import (
 router = APIRouter()
 
 
+def verify_auth_header(request: Request):
+    authorization = request.headers.get("Authorization")
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header is missing"
+        )
+    bearer = authorization.split()
+    if len(bearer) != 2 or bearer[0] != "Bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Authorization header format. Expected 'Bearer <token>'"
+        )
+    return bearer[1]
+
+
 @router.post(
     "/users/{user_id}/profile/",
     response_model=ProfileResponseSchema,
     description="Create user profile",
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_auth_header)]
 )
 async def profile_user(
-    user_id: int,
-    user_data: ProfileSchema = Depends(ProfileSchema.as_form),
-    s3_client: S3StorageClient = Depends(get_s3_storage_client),
-    authorization: str | None = Header(None),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-    db: AsyncSession = Depends(get_db),
+        user_id: int,
+        user_data: ProfileSchema = Depends(ProfileSchema.as_form),
+        s3_client: S3StorageClient = Depends(get_s3_storage_client),
+        token: str = Depends(verify_auth_header),
+        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+        db: AsyncSession = Depends(get_db),
 ):
-    if authorization is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header is missing",
-        )
-
-    bearer = authorization.split()
-
-    if len(bearer) != 2 or bearer[0] != "Bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Authorization header format. Expected 'Bearer <token>'",
-        )
 
     try:
-        token = jwt_manager.decode_access_token(bearer[1])
+        payload = jwt_manager.decode_access_token(token)
     except Exception as e:
         if e.__class__.__name__ == "TokenExpiredError" or "expired" in str(e).lower():
             raise HTTPException(
@@ -57,8 +61,9 @@ async def profile_user(
             detail="Could not validate credentials",
         )
 
-    user = token.get("user_id")
-    is_admin = token.get("is_admin") is True or token.get("user_group") == "admin"
+    user = payload.get("user_id")
+
+    is_admin = payload.get("group_id") == 3
 
     if user != user_id and not is_admin:
         raise HTTPException(
@@ -86,7 +91,7 @@ async def profile_user(
             detail="User already has a profile.",
         )
 
-    file_key = f"{user_id}_avatar.jpg"
+    file_key = f"avatars/{user_id}_avatar.jpg"
     try:
         avatar = await user_data.avatar.read()
         await s3_client.upload_file(

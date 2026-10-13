@@ -36,8 +36,8 @@ def downgrade() -> None:
     op.alter_column(
         "refresh_tokens",
         "token",
-        existing_type=sa.String(length=512),
-        type_=sa.VARCHAR(length=64),
+        existing_type=sa.String(length=255),
+        type_=sa.VARCHAR(length=255),
         existing_nullable=False,
     )
     # ### end Alembic commands ###
