@@ -1,7 +1,7 @@
 from datetime import date
 
-from fastapi import UploadFile, Form, File, HTTPException
-from pydantic import BaseModel, field_validator, HttpUrl
+from fastapi import UploadFile, Form, File, HTTPException, RequestValidationError
+from pydantic import BaseModel, field_validator, HttpUrl, ValidationError
 
 from validation import (
     validate_name,
@@ -22,17 +22,20 @@ class ProfileSchema(BaseModel):
     @field_validator("first_name", "last_name")
     @classmethod
     def check_name(cls, value: str):
-        return validate_name(value)
+        validate_name(value)
+        return value
 
     @field_validator("gender")
     @classmethod
     def check_gender(cls, value: str):
-        return validate_gender(value)
+        validate_gender(value)
+        return value
 
     @field_validator("date_of_birth")
     @classmethod
     def birth_date(cls, value: date):
-        return validate_birth_date(value)
+        validate_birth_date(value)
+        return value
 
     @field_validator("info")
     @classmethod
@@ -57,14 +60,17 @@ class ProfileSchema(BaseModel):
             info: str = Form(...),
             avatar: UploadFile = File(...),
     ):
-        return cls(
-            first_name=first_name,
-            last_name=last_name,
-            gender=gender,
-            date_of_birth=date_of_birth,
-            info=info,
-            avatar=avatar,
-        )
+        try:
+            return cls(
+                first_name=first_name,
+                last_name=last_name,
+                gender=gender,
+                date_of_birth=date_of_birth,
+                info=info,
+                avatar=avatar,
+            )
+        except ValidationError as e:
+            raise RequestValidationError(e.errors())
 
     class Config:
         from_attributes = True
