@@ -4,8 +4,9 @@ from schemas.profiles import ProfileResponseSchema, ProfileSchema
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from storages import S3StorageClient
-from security.token_manager import JWTAuthManager
+from security.token_manager import JWTAuthManagerInterface
 from config import get_s3_storage_client
+from security.dependencies import get_jwt_auth_manager
 
 from database import (
     get_db,
@@ -24,10 +25,10 @@ router = APIRouter()
 )
 async def profile_user(
     user_id: int,
-    user_data: ProfileSchema,
+    user_data: ProfileSchema = Depends(ProfileSchema.as_form),
     s3_client: S3StorageClient = Depends(get_s3_storage_client),
     authorization: str | None = Header(None),
-    jwt_manager: JWTAuthManager = Depends(JWTAuthManager),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     db: AsyncSession = Depends(get_db),
 ):
     if authorization is None:
@@ -88,7 +89,7 @@ async def profile_user(
 
     file_key = f"{user_id}_avatar.jpg"
     try:
-        avatar = user_data.avatar
+        avatar = await user_data.avatar.read()
         await s3_client.upload_file(
             file_name=file_key,
             file_data=avatar,
