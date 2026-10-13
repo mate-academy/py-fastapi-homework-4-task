@@ -46,21 +46,21 @@ async def profile_user(
 
     try:
         token = jwt_manager.decode_access_token(bearer[1])
-    except ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired.",
-        )
-    except JWTError:
+    except Exception as e:
+        if e.__class__.__name__ == "TokenExpiredError" or "expired" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired.",
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
 
-    user = token["user_id"]
-    role = token.get("is_admin", False)
+    user = token.get("user_id")
+    is_admin = token.get("is_admin") is True or token.get("user_group") == "admin"
 
-    if user != user_id and not role:
+    if user != user_id and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to edit this profile.",
