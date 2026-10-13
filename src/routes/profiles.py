@@ -96,7 +96,6 @@ async def profile_user(
             file_name=file_key,
             file_data=avatar,
         )
-        avatar_url = await s3_client.get_file_url(file_key)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
