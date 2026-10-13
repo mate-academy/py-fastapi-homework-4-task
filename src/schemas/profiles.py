@@ -38,7 +38,7 @@ class ProfileSchema(BaseModel):
     @classmethod
     def check_info(cls, value: str):
         if not value or not value.strip():
-            raise ValueError("Info cannot be empty or contain only spaces")
+            raise ValueError("Info field cannot be empty or contain only spaces.")
         return value
 
     @field_validator("avatar")
@@ -46,13 +46,38 @@ class ProfileSchema(BaseModel):
     def check_image(cls, value):
         return validate_image(value)
 
+    @classmethod
+    def as_form(
+            cls,
+            first_name: str = Form(...),
+            last_name: str = Form(...),
+            gender: str = Form(...),
+            date_of_birth: date = Form(...),
+            info: str = Form(...),
+            avatar: UploadFile = File(...),
+    ):
+        return cls(
+            first_name=first_name,
+            last_name=last_name,
+            gender=gender,
+            date_of_birth=date_of_birth,
+            info=info,
+            avatar=avatar,
+        )
+
     class Config:
         from_attributes = True
 
 
-class ProfileResponseSchema(ProfileSchema):
+class ProfileResponseSchema(BaseModel):
     id: int
     user_id: int
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
+    avatar: str
 
     class Config:
         from_attributes = True
