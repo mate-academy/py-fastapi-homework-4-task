@@ -96,6 +96,8 @@ async def profile_user(
             file_name=file_key,
             file_data=avatar,
         )
+
+        avatar_url = await s3_client.get_file_url(file_key)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -116,4 +118,5 @@ async def profile_user(
     await db.commit()
     await db.refresh(user_profile_model)
 
+    user_profile_model.avatar = avatar_url
     return user_profile_model
