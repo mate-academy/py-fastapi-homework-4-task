@@ -20,16 +20,15 @@ router = APIRouter()
     "/users/{user_id}/profile/",
     response_model=ProfileResponseSchema,
     description="Create user profile",
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 async def profile_user(
-        user_id: int,
-        user_data: ProfileSchema,
-        s3_client: S3StorageClient = Depends(get_s3_storage_client),
-        authorization: str | None = Header(None),
-        jwt_manager: JWTAuthManager = Depends(JWTAuthManager),
-        db: AsyncSession = Depends(get_db),
-
+    user_id: int,
+    user_data: ProfileSchema,
+    s3_client: S3StorageClient = Depends(get_s3_storage_client),
+    authorization: str | None = Header(None),
+    jwt_manager: JWTAuthManager = Depends(JWTAuthManager),
+    db: AsyncSession = Depends(get_db),
 ):
     if authorization is None:
         raise HTTPException(
