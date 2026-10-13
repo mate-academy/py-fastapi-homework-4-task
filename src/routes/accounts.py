@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,7 +67,9 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -171,7 +173,9 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account.
@@ -249,7 +253,9 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -301,8 +307,8 @@ async def request_password_reset_token(
     responses={
         400: {
             "description": (
-                "Bad Request - The provided email or token is invalid, "
-                "the token has expired, or the user account is not active."
+                    "Bad Request - The provided email or token is invalid, "
+                    "the token has expired, or the user account is not active."
             ),
             "content": {
                 "application/json": {
@@ -337,7 +343,9 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
