@@ -110,7 +110,7 @@ async def profile_user(
         gender=user_data.gender,
         date_of_birth=user_data.date_of_birth,
         info=user_data.info,
-        avatar=avatar_url,
+        avatar=file_key,
     )
 
     db.add(user_profile_model)
