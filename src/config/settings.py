@@ -25,6 +25,8 @@ class BaseAppSettings(BaseSettings):
     EMAIL_USE_TLS: bool = os.getenv("EMAIL_USE_TLS", "False").lower() == "true"
     MAILHOG_API_PORT: int = os.getenv("MAILHOG_API_PORT", 8025)
 
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://127.0.0.1")
+
     S3_STORAGE_HOST: str = os.getenv("MINIO_HOST", "minio-theater")
     S3_STORAGE_PORT: int = os.getenv("MINIO_PORT", 9000)
     S3_STORAGE_ACCESS_KEY: str = os.getenv("MINIO_ROOT_USER", "minioadmin")
@@ -46,6 +48,8 @@ class Settings(BaseAppSettings):
     SECRET_KEY_ACCESS: str = os.getenv("SECRET_KEY_ACCESS", os.urandom(32))
     SECRET_KEY_REFRESH: str = os.getenv("SECRET_KEY_REFRESH", os.urandom(32))
     JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
+
+
 
 
 class TestingSettings(BaseAppSettings):
