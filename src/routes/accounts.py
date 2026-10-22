@@ -354,7 +354,9 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> MessageResponseSchema:
     """
     Endpoint for resetting a user's password.
@@ -366,6 +368,9 @@ async def reset_password(
         data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
          token, and new password.
         db (AsyncSession): The asynchronous database session.
+        background_tasks: BackgroundTasks: Perform task after sending response
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator): Asynchronously send
+        an account activation email.
 
     Returns:
         MessageResponseSchema: A response message indicating successful password reset.
@@ -415,6 +420,13 @@ async def reset_password(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
+        )
+    else:
+        login_link = "http://127.0.0.1/accounts/login/"
+        background_tasks.add_task(
+            email_sender.send_password_reset_complete_email,
+            str(data.email),
+            login_link,
         )
 
     return MessageResponseSchema(message="Password reset successfully.")
