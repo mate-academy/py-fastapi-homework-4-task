@@ -178,7 +178,7 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
-        backgrounds_tasks: BackgroundTasks,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
         email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> MessageResponseSchema:
@@ -193,6 +193,9 @@ async def activate_account(
     Args:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
         db (AsyncSession): The asynchronous database session.
+        background_tasks: BackgroundTasks: Perform task after sending response
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator): Asynchronously send
+        an account activation email.
 
     Returns:
         MessageResponseSchema: A response message confirming successful activation.
@@ -235,7 +238,7 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
     login_link = "http://127.0.0.1/accounts/login/"
-    backgrounds_tasks.add_task(
+    background_tasks.add_task(
         email_sender.send_activation_complete_email,
         str(activation_data.email),
         login_link
@@ -255,7 +258,9 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ) -> MessageResponseSchema:
     """
     Endpoint to request a password reset token.
@@ -266,6 +271,9 @@ async def request_password_reset_token(
     Args:
         data (PasswordResetRequestSchema): The request data containing the user's email.
         db (AsyncSession): The asynchronous database session.
+        background_tasks: BackgroundTasks: Perform task after sending response
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator): Asynchronously send
+        an account activation email.
 
     Returns:
         MessageResponseSchema: A success message indicating that instructions will be sent.
@@ -284,6 +292,17 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+
+    password_reset_complete_link = (
+        f"http://127.0.0.1/accounts/password-reset/complete/"
+        f"?email={data.email}&token={reset_token.token}"
+    )
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        str(data.email),
+        password_reset_complete_link,
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
