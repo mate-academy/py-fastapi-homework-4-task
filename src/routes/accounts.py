@@ -133,7 +133,7 @@ async def register_user(
         activate_link = f"{BASE_URL}/api/v1/accounts/activate/"
 
         background_tasks.add_task(
-            email_sender.send_password_reset_complete_email,
+            email_sender.send_activation_email,
             str(user_data.email),
             activate_link
         )
@@ -233,7 +233,7 @@ async def activate_account(
     login_link = f"{BASE_URL}/api/v1/accounts/login/"
 
     background_tasks.add_task(
-        email_sender.send_password_reset_complete_email,
+        email_sender.send_activation_complete_email,
         str(activation_data.email),
         login_link
     )
@@ -288,7 +288,7 @@ async def request_password_reset_token(
     password_reset_token_link = f"{BASE_URL}/api/v1/accounts/reset-password/complete/"
 
     background_tasks.add_task(
-        email_sender.send_password_reset_complete_email,
+        email_sender.send_password_reset_email,
         str(data.email),
         password_reset_token_link
     )
