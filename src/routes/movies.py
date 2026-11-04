@@ -1,21 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from database import get_db, MovieModel
 from database import (
+    ActorModel,
     CountryModel,
     GenreModel,
-    ActorModel,
-    LanguageModel
+    LanguageModel,
+    MovieModel,
+    get_db,
 )
-from schemas import (
-    MovieListResponseSchema,
-    MovieListItemSchema,
-    MovieDetailSchema
-)
+from schemas import MovieDetailSchema, MovieListItemSchema, MovieListResponseSchema
 from schemas.movies import MovieCreateSchema, MovieUpdateSchema
 
 router = APIRouter()

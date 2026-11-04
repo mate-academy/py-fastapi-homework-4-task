@@ -11,7 +11,7 @@ class StubEmailSender(EmailSenderInterface):
             email (str): The recipient's email address.
             activation_link (str): The activation link to include in the email.
         """
-        return None
+        return
 
     async def send_activation_complete_email(self, email: str, login_link: str) -> None:
         """
@@ -21,7 +21,7 @@ class StubEmailSender(EmailSenderInterface):
             email (str): The recipient's email address.
             login_link (str): The login link to include in the email.
         """
-        return None
+        return
 
     async def send_password_reset_email(self, email: str, reset_link: str) -> None:
         """
@@ -31,7 +31,7 @@ class StubEmailSender(EmailSenderInterface):
             email (str): The recipient's email address.
             reset_link (str): The password reset link to include in the email.
         """
-        return None
+        return
 
     async def send_password_reset_complete_email(self, email: str, login_link: str) -> None:
         """
@@ -41,4 +41,4 @@ class StubEmailSender(EmailSenderInterface):
             email (str): The recipient's email address.
             login_link (str): The login link to include in the email.
         """
-        return None
+        return

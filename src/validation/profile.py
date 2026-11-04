@@ -2,8 +2,8 @@ import re
 from datetime import date
 from io import BytesIO
 
-from PIL import Image
 from fastapi import UploadFile
+from PIL import Image
 
 from database.models.accounts import GenderEnum
 
@@ -27,7 +27,7 @@ def validate_image(avatar: UploadFile) -> None:
         image_format = image.format
         if image_format not in supported_image_formats:
             raise ValueError(f"Unsupported image format: {image_format}. Use one of next: {supported_image_formats}")
-    except IOError:
+    except OSError:
         raise ValueError("Invalid image format")
 
 

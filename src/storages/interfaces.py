@@ -1,11 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Union
 
 
 class S3StorageInterface(ABC):
 
     @abstractmethod
-    async def upload_file(self, file_name: str, file_data: Union[bytes, bytearray]) -> None:
+    async def upload_file(self, file_name: str, file_data: bytes | bytearray) -> None:
         """
         Uploads a file to the storage.
 
@@ -13,7 +12,6 @@ class S3StorageInterface(ABC):
         :param file_data: The file data in bytes.
         :return: URL of the uploaded file.
         """
-        pass
 
     @abstractmethod
     async def get_file_url(self, file_name: str) -> str:
@@ -23,4 +21,3 @@ class S3StorageInterface(ABC):
         :param file_name: The name of the file stored in the bucket.
         :return: The full URL to access the file.
         """
-        pass

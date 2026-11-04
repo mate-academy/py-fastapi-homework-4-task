@@ -1,10 +1,6 @@
 from fastapi import FastAPI
 
-from routes import (
-    movie_router,
-    accounts_router,
-    profiles_router
-)
+from routes import accounts_router, movie_router, profiles_router
 
 app = FastAPI(
     title="Movies homework",

@@ -1,9 +1,8 @@
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
-from jose import jwt, JWTError, ExpiredSignatureError
+from jose import ExpiredSignatureError, JWTError, jwt
 
-from exceptions import TokenExpiredError, InvalidTokenError
+from exceptions import InvalidTokenError, TokenExpiredError
 from security.interfaces import JWTAuthManagerInterface
 
 
@@ -28,11 +27,11 @@ class JWTAuthManager(JWTAuthManagerInterface):
         Create a JWT token with provided data, secret key, and expiration time.
         """
         to_encode = data.copy()
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
         to_encode.update({"exp": expire})
         return jwt.encode(to_encode, secret_key, algorithm=self._algorithm)
 
-    def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    def create_access_token(self, data: dict, expires_delta: timedelta | None = None) -> str:
         """
         Create a new access token with a default or specified expiration time.
         """
@@ -41,7 +40,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
             self._secret_key_access,
             expires_delta or timedelta(minutes=self._ACCESS_KEY_TIMEDELTA_MINUTES))
 
-    def create_refresh_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    def create_refresh_token(self, data: dict, expires_delta: timedelta | None = None) -> str:
         """
         Create a new refresh token with a default or specified expiration time.
         """
