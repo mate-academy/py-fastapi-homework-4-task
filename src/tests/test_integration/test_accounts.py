@@ -1,18 +1,18 @@
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from database import (
-    UserModel,
     ActivationTokenModel,
     PasswordResetTokenModel,
-    UserGroupModel,
+    RefreshTokenModel,
     UserGroupEnum,
-    RefreshTokenModel
+    UserGroupModel,
+    UserModel,
 )
 
 
@@ -49,9 +49,9 @@ async def test_register_user_success(client, db_session, seed_user_groups):
 
     expires_at = activation_token.expires_at
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
 
-    assert expires_at > datetime.now(timezone.utc), "Activation token is already expired."
+    assert expires_at > datetime.now(UTC), "Activation token is already expired."
 
 
 @pytest.mark.asyncio
@@ -235,7 +235,7 @@ async def test_activate_user_with_expired_token(client, db_session, seed_user_gr
     activation_token = result_token.scalars().first()
     assert activation_token is not None, "Activation token should exist for the user."
 
-    activation_token.expires_at = datetime.now(timezone.utc) - timedelta(days=2)
+    activation_token.expires_at = datetime.now(UTC) - timedelta(days=2)
     await db_session.commit()
 
     activation_payload = {
@@ -387,9 +387,9 @@ async def test_request_password_reset_token_success(client, db_session, seed_use
 
     expires_at = reset_token.expires_at
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
 
-    assert expires_at > datetime.now(timezone.utc), "Password reset token should have a future expiration date."
+    assert expires_at > datetime.now(UTC), "Password reset token should have a future expiration date."
 
 
 @pytest.mark.asyncio
@@ -605,7 +605,7 @@ async def test_reset_password_expired_token(client, db_session, seed_user_groups
     token_record = result_token.scalars().first()
     assert token_record is not None, "Password reset token not created."
 
-    token_record.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
+    token_record.expires_at = datetime.now(UTC) - timedelta(days=1)
     await db_session.commit()
 
     reset_complete_payload = {
@@ -730,9 +730,9 @@ async def test_login_user_success(client, db_session, jwt_manager, seed_user_gro
 
     expires_at = refresh_token_record.expires_at
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
 
-    assert expires_at > datetime.now(timezone.utc), "Refresh token is already expired."
+    assert expires_at > datetime.now(UTC), "Refresh token is already expired."
 
 
 @pytest.mark.asyncio

@@ -1,19 +1,43 @@
-from schemas.movies import (
-    MovieDetailSchema,
-    MovieListResponseSchema,
-    MovieListItemSchema,
-    MovieCreateSchema,
-    MovieUpdateSchema
-)
 from schemas.accounts import (
+    MessageResponseSchema,
+    PasswordResetCompleteRequestSchema,
+    PasswordResetRequestSchema,
+    TokenRefreshRequestSchema,
+    TokenRefreshResponseSchema,
+    UserActivationRequestSchema,
+    UserLoginRequestSchema,
+    UserLoginResponseSchema,
     UserRegistrationRequestSchema,
     UserRegistrationResponseSchema,
-    UserActivationRequestSchema,
-    MessageResponseSchema,
-    PasswordResetRequestSchema,
-    PasswordResetCompleteRequestSchema,
-    UserLoginResponseSchema,
-    UserLoginRequestSchema,
-    TokenRefreshRequestSchema,
-    TokenRefreshResponseSchema
 )
+from schemas.movies import (
+    MovieCreateSchema,
+    MovieDetailSchema,
+    MovieListItemSchema,
+    MovieListResponseSchema,
+    MovieUpdateSchema,
+)
+from schemas.profiles import (
+    ProfileCreateSchema,
+    ProfileResponseSchema,
+)
+
+__all__ = [
+    "MessageResponseSchema",
+    "MovieCreateSchema",
+    "MovieDetailSchema",
+    "MovieListItemSchema",
+    "MovieListResponseSchema",
+    "MovieUpdateSchema",
+    "PasswordResetCompleteRequestSchema",
+    "PasswordResetRequestSchema",
+    "ProfileCreateSchema",
+    "ProfileResponseSchema",
+    "TokenRefreshRequestSchema",
+    "TokenRefreshResponseSchema",
+    "UserActivationRequestSchema",
+    "UserLoginRequestSchema",
+    "UserLoginResponseSchema",
+    "UserRegistrationRequestSchema",
+    "UserRegistrationResponseSchema",
+]

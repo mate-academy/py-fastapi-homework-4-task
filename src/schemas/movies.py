@@ -1,19 +1,19 @@
-from datetime import date, datetime
-from typing import Optional, List
+from datetime import date as Date
+from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
 from database.models.movies import MovieStatusEnum
 from schemas.examples.movies import (
-    country_schema_example,
-    language_schema_example,
-    genre_schema_example,
     actor_schema_example,
-    movie_item_schema_example,
-    movie_list_response_schema_example,
+    country_schema_example,
+    genre_schema_example,
+    language_schema_example,
     movie_create_schema_example,
     movie_detail_schema_example,
-    movie_update_schema_example
+    movie_item_schema_example,
+    movie_list_response_schema_example,
+    movie_update_schema_example,
 )
 
 
@@ -34,7 +34,7 @@ class LanguageSchema(BaseModel):
 class CountrySchema(BaseModel):
     id: int
     code: str
-    name: Optional[str]
+    name: str | None
 
     model_config = {
         "from_attributes": True,
@@ -76,7 +76,7 @@ class ActorSchema(BaseModel):
 
 class MovieBaseSchema(BaseModel):
     name: str = Field(..., max_length=255)
-    date: date
+    date: Date
     score: float = Field(..., ge=0, le=100)
     overview: str
     status: MovieStatusEnum
@@ -99,9 +99,9 @@ class MovieBaseSchema(BaseModel):
 class MovieDetailSchema(MovieBaseSchema):
     id: int
     country: CountrySchema
-    genres: List[GenreSchema]
-    actors: List[ActorSchema]
-    languages: List[LanguageSchema]
+    genres: list[GenreSchema]
+    actors: list[ActorSchema]
+    languages: list[LanguageSchema]
 
     model_config = {
         "from_attributes": True,
@@ -116,7 +116,7 @@ class MovieDetailSchema(MovieBaseSchema):
 class MovieListItemSchema(BaseModel):
     id: int
     name: str
-    date: date
+    date: Date
     score: float
     overview: str
 
@@ -131,9 +131,9 @@ class MovieListItemSchema(BaseModel):
 
 
 class MovieListResponseSchema(BaseModel):
-    movies: List[MovieListItemSchema]
-    prev_page: Optional[str]
-    next_page: Optional[str]
+    movies: list[MovieListItemSchema]
+    prev_page: str | None
+    next_page: str | None
     total_pages: int
     total_items: int
 
@@ -149,16 +149,16 @@ class MovieListResponseSchema(BaseModel):
 
 class MovieCreateSchema(BaseModel):
     name: str
-    date: date
+    date: Date
     score: float = Field(..., ge=0, le=100)
     overview: str
     status: MovieStatusEnum
     budget: float = Field(..., ge=0)
     revenue: float = Field(..., ge=0)
     country: str
-    genres: List[str]
-    actors: List[str]
-    languages: List[str]
+    genres: list[str]
+    actors: list[str]
+    languages: list[str]
 
     model_config = {
         "from_attributes": True,
@@ -176,18 +176,18 @@ class MovieCreateSchema(BaseModel):
 
     @field_validator("genres", "actors", "languages", mode="before")
     @classmethod
-    def normalize_list_fields(cls, value: List[str]) -> List[str]:
+    def normalize_list_fields(cls, value: list[str]) -> list[str]:
         return [item.title() for item in value]
 
 
 class MovieUpdateSchema(BaseModel):
-    name: Optional[str] = None
-    date: Optional[date] = None
-    score: Optional[float] = Field(None, ge=0, le=100)
-    overview: Optional[str] = None
-    status: Optional[MovieStatusEnum] = None
-    budget: Optional[float] = Field(None, ge=0)
-    revenue: Optional[float] = Field(None, ge=0)
+    name: str | None = None
+    date: Date | None = None
+    score: float | None = Field(None, ge=0, le=100)
+    overview: str | None = None
+    status: MovieStatusEnum | None = None
+    budget: float | None = Field(None, ge=0)
+    revenue: float | None = Field(None, ge=0)
 
     model_config = {
         "from_attributes": True,

@@ -1,10 +1,19 @@
 import datetime
 from enum import Enum
-from typing import Optional
 
-from sqlalchemy import String, Float, Text, DECIMAL, UniqueConstraint, Date, ForeignKey, Table, Column
-from sqlalchemy.orm import mapped_column, Mapped, relationship
+from sqlalchemy import (
+    DECIMAL,
+    Column,
+    Date,
+    Float,
+    ForeignKey,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
 
@@ -82,7 +91,7 @@ class CountryModel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String(3), unique=True, nullable=False)
-    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     movies: Mapped[list["MovieModel"]] = relationship("MovieModel", back_populates="country")
 

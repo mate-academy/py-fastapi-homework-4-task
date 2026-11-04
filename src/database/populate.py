@@ -1,25 +1,26 @@
 import asyncio
 import math
-from typing import List, Dict, Tuple
 
 import pandas as pd
-from sqlalchemy import insert, select, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, insert, select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 from tqdm import tqdm
 
 from config import get_settings
 from database import (
+    ActorModel,
+    ActorsMoviesModel,
     CountryModel,
     GenreModel,
-    ActorModel,
-    MoviesGenresModel,
-    ActorsMoviesModel,
     LanguageModel,
+    MovieModel,
+    MoviesGenresModel,
     MoviesLanguagesModel,
-    MovieModel, UserGroupModel, UserGroupEnum
+    UserGroupEnum,
+    UserGroupModel,
+    get_db_contextmanager,
 )
-from database import get_db_contextmanager
 
 CHUNK_SIZE = 1000
 
@@ -102,9 +103,9 @@ class CSVDatabaseSeeder:
     async def _get_or_create_bulk(
             self,
             model,
-            items: List[str],
+            items: list[str],
             unique_field: str
-    ) -> Dict[str, object]:
+    ) -> dict[str, object]:
         """
         For a given model and a list of item names/keys (e.g., a list of genres),
         retrieves any existing records in the database matching these items.
@@ -116,7 +117,7 @@ class CSVDatabaseSeeder:
         :param unique_field: The field name that should be unique (e.g., "name").
         :return: A dict mapping each item to its model instance.
         """
-        existing_dict: Dict[str, object] = {}
+        existing_dict: dict[str, object] = {}
 
         if items:
             for i in range(0, len(items), CHUNK_SIZE):
@@ -150,7 +151,7 @@ class CSVDatabaseSeeder:
 
         return existing_dict
 
-    async def _bulk_insert(self, table, data_list: List[Dict[str, int]]) -> None:
+    async def _bulk_insert(self, table, data_list: list[dict[str, int]]) -> None:
         """
         Insert data_list into the given table in chunks, displaying progress via tqdm.
 
@@ -176,7 +177,7 @@ class CSVDatabaseSeeder:
     async def _prepare_reference_data(
             self,
             data: pd.DataFrame
-    ) -> Tuple[Dict[str, object], Dict[str, object], Dict[str, object], Dict[str, object]]:
+    ) -> tuple[dict[str, object], dict[str, object], dict[str, object], dict[str, object]]:
         """
         Gather unique values for countries, genres, actors, and languages from the DataFrame.
         Then call _get_or_create_bulk for each to ensure they exist in the database.
@@ -212,8 +213,8 @@ class CSVDatabaseSeeder:
     def _prepare_movies_data(
             self,
             data: pd.DataFrame,
-            country_map: Dict[str, object]
-    ) -> List[Dict[str, object]]:
+            country_map: dict[str, object]
+    ) -> list[dict[str, object]]:
         """
         Build a list of dictionaries representing movie records to be inserted into MovieModel.
 
@@ -221,7 +222,7 @@ class CSVDatabaseSeeder:
         :param country_map: A mapping of country codes to CountryModel instances.
         :return: A list of dictionaries, each representing a new movie record.
         """
-        movies_data: List[Dict[str, object]] = []
+        movies_data: list[dict[str, object]] = []
         for _, row in tqdm(data.iterrows(), total=data.shape[0], desc="Processing movies"):
             country = country_map[row['country']]
             movie = {
@@ -240,11 +241,11 @@ class CSVDatabaseSeeder:
     def _prepare_associations(
             self,
             data: pd.DataFrame,
-            movie_ids: List[int],
-            genre_map: Dict[str, object],
-            actor_map: Dict[str, object],
-            language_map: Dict[str, object]
-    ) -> Tuple[List[Dict[str, int]], List[Dict[str, int]], List[Dict[str, int]]]:
+            movie_ids: list[int],
+            genre_map: dict[str, object],
+            actor_map: dict[str, object],
+            language_map: dict[str, object]
+    ) -> tuple[list[dict[str, int]], list[dict[str, int]], list[dict[str, int]]]:
         """
         Prepare three lists of dictionaries: movie-genre, movie-actor, and movie-language
         associations for all movies in the DataFrame.
@@ -258,9 +259,9 @@ class CSVDatabaseSeeder:
                  (movie_genres_data, movie_actors_data, movie_languages_data),
                  each containing dictionaries for bulk insertion.
         """
-        movie_genres_data: List[Dict[str, int]] = []
-        movie_actors_data: List[Dict[str, int]] = []
-        movie_languages_data: List[Dict[str, int]] = []
+        movie_genres_data: list[dict[str, int]] = []
+        movie_actors_data: list[dict[str, int]] = []
+        movie_languages_data: list[dict[str, int]] = []
 
         for i, (_, row) in enumerate(tqdm(data.iterrows(), total=data.shape[0], desc="Processing associations")):
             movie_id = movie_ids[i]
@@ -342,8 +343,8 @@ async def main() -> None:
             try:
                 await seeder.seed()
                 print("Database seeding completed successfully.")
-            except Exception as e:
-                print(f"Failed to seed the database: {e}")
+            except SQLAlchemyError as error:
+                print(f"Failed to seed the database: {error}")
         else:
             print("Database is already populated. Skipping seeding.")
 
