@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database import Base
+from database.models.base import Base
 
 
 class MovieStatusEnum(str, Enum):

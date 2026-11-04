@@ -425,7 +425,6 @@ async def reset_password(
         str(user.email),
         login_link,
     )
-    
     return MessageResponseSchema(message="Password reset successfully.")
 
 

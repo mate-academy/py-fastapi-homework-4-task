@@ -69,7 +69,7 @@ class EmailSender(EmailSenderInterface):
         except aiosmtplib.SMTPException as error:
             logger.error("Failed to send email to %s: %s", recipient, error)
             raise BaseEmailError(f"Failed to send email to {recipient}: {error}")
-        
+
     async def send_activation_email(self, email: str, activation_link: str) -> None:
         """
         Send an account activation email asynchronously.
