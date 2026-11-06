@@ -7,6 +7,7 @@ services:
     command: [ "pytest", "-c", "/usr/src/config/pytest.ini",
                "-m", "e2e", "--maxfail=5", "--disable-warnings", "-v", "--tb=short"]
     environment:
+      - APP_HOST=http://127.0.0.1
       - PYTHONPATH=/usr/src/fastapi
       - ENVIRONMENT=testing
       - EMAIL_HOST=mailhog_theater_test
@@ -40,7 +41,7 @@ services:
       - theater_network_test
 
   minio:
-    image: minio/minio:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: minio-theater-test
     command: server --console-address ":9001" /data
     ports:
