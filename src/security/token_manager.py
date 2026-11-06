@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -29,7 +30,10 @@ class JWTAuthManager(JWTAuthManagerInterface):
         """
         to_encode = data.copy()
         expire = datetime.now(timezone.utc) + expires_delta
-        to_encode.update({"exp": expire})
+        # "jti" (unique token id) makes every token unique, even when the same
+        # user logs in twice within one second (otherwise the JWTs would be
+        # identical and violate the UNIQUE constraint on refresh_tokens.token).
+        to_encode.update({"exp": expire, "jti": uuid.uuid4().hex})
         return jwt.encode(to_encode, secret_key, algorithm=self._algorithm)
 
     def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:

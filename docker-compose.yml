@@ -90,7 +90,9 @@ services:
       - theater_network
 
   minio:
-    image: minio/minio:latest
+    build:
+      context: .
+      dockerfile: ./docker/minio/Dockerfile
     container_name: minio-theater
     command: server --console-address ":9001" /data
     ports:
@@ -111,7 +113,7 @@ services:
   minio_mc:
     build:
       context: .
-      dockerfile: docker/minio_mc/Dockerfile
+      dockerfile: ./docker/minio_mc/Dockerfile
     container_name: minio_mc_theater
     command: ["/bin/sh", "-c", "/commands/setup_minio.sh"]
     depends_on:
