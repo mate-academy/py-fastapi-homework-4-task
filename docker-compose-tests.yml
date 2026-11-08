@@ -40,7 +40,9 @@ services:
       - theater_network_test
 
   minio:
-    image: minio/minio:latest
+    # minio/minio:latest removed its public `latest` tag and breaks e2e;
+    # pgsty/minio:latest is a working mirror with full server functionality
+    image: pgsty/minio:latest
     container_name: minio-theater-test
     command: server --console-address ":9001" /data
     ports:
