@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
-from typing import cast
+from typing import cast, Annotated
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Query, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,8 +17,8 @@ from database import (
     PasswordResetTokenModel,
     RefreshTokenModel
 )
-from exceptions import BaseSecurityError
-from notifications import EmailSenderInterface
+from exceptions import BaseSecurityError, BaseEmailError
+from notifications.emails import EmailSender
 from schemas import (
     UserRegistrationRequestSchema,
     UserRegistrationResponseSchema,
@@ -67,7 +67,10 @@ router = APIRouter()
 )
 async def register_user(
         user_data: UserRegistrationRequestSchema,
+        email_sender: Annotated[EmailSender, Depends(get_accounts_email_notificator)],
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
+
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -78,6 +81,8 @@ async def register_user(
 
     Args:
         user_data (UserRegistrationRequestSchema): The registration details including email and password.
+        email_sender (EmailSenderInterface): The email sender used to send activation emails.
+        background_tasks (BackgroundTasks): The background tasks used to send activation emails asynchronously.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -127,6 +132,11 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
+        background_tasks.add_task(
+            email_sender.send_activation_email,
+            email=str(user_data.email),
+            activation_link=f"http://127.0.0.1/accounts/activate/?token={activation_token.token}",
+        )
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
@@ -163,6 +173,8 @@ async def register_user(
 )
 async def activate_account(
         activation_data: UserActivationRequestSchema,
+        email_sender: Annotated[EmailSender, Depends(get_accounts_email_notificator)],
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -175,6 +187,8 @@ async def activate_account(
 
     Args:
         activation_data (UserActivationRequestSchema): Contains the user's email and activation token.
+        email_sender (EmailSenderInterface): The email sender used to send activation emails.
+        background_tasks (BackgroundTasks): The background tasks used to send activation emails asynchronously.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -191,7 +205,7 @@ async def activate_account(
         .join(UserModel)
         .where(
             UserModel.email == activation_data.email,
-            ActivationTokenModel.token == activation_data.token
+            ActivationTokenModel.token == activation_data.token,
         )
     )
     result = await db.execute(stmt)
@@ -213,10 +227,14 @@ async def activate_account(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User account is already active."
         )
-
     user.is_active = True
     await db.delete(token_record)
     await db.commit()
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email,
+        email=user.email,
+        login_link="http://127.0.0.1/accounts/login/"
+    )
 
     return MessageResponseSchema(message="User account activated successfully.")
 
@@ -233,6 +251,8 @@ async def activate_account(
 )
 async def request_password_reset_token(
         data: PasswordResetRequestSchema,
+        email_sender: Annotated[EmailSender, Depends(get_accounts_email_notificator)],
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -243,6 +263,8 @@ async def request_password_reset_token(
 
     Args:
         data (PasswordResetRequestSchema): The request data containing the user's email.
+        email_sender (EmailSenderInterface): The email sender used to send activation emails.
+        background_tasks (BackgroundTasks): The background tasks used to send activation emails asynchronously.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -262,6 +284,11 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        email=user.email,
+        reset_link=f"http://127.0.0.1/accounts/password-reset/?token={reset_token.token}",
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -313,6 +340,8 @@ async def request_password_reset_token(
 )
 async def reset_password(
         data: PasswordResetCompleteRequestSchema,
+        email_sender: Annotated[EmailSender, Depends(get_accounts_email_notificator)],
+        background_tasks: BackgroundTasks,
         db: AsyncSession = Depends(get_db),
 ) -> MessageResponseSchema:
     """
@@ -322,8 +351,10 @@ async def reset_password(
     Deletes the token after a successful password reset.
 
     Args:
-        data (PasswordResetCompleteRequestSchema): The request data containing the user's email,
-         token, and new password.
+        data (PasswordResetCompleteRequestSchema):
+        The request data containing the user's email, token and new password.
+        email_sender (EmailSenderInterface): The email sender used to send activation emails.
+        background_tasks (BackgroundTasks): The background tasks used to send activation emails asynchronously.
         db (AsyncSession): The asynchronous database session.
 
     Returns:
@@ -374,6 +405,12 @@ async def reset_password(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
+        )
+    else:
+        background_tasks.add_task(
+            email_sender.send_password_reset_complete_email,
+            email=user.email,
+            login_link="http://127.0.0.1/accounts/login/"
         )
 
     return MessageResponseSchema(message="Password reset successfully.")
