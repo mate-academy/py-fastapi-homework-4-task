@@ -44,11 +44,11 @@ services:
     container_name: minio-theater-test
     ports:
       - "9000:9090"
-      - "9001:9091"
+      - "9001:9191"
     environment:
       - initialBuckets=theater-storage
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9090/s3mock/health" ]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/favicon.ico" ]
       interval: 10s
       timeout: 5s
       retries: 5
