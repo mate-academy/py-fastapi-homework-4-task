@@ -1,4 +1,8 @@
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+from starlette.requests import Request
 
 from routes import (
     movie_router,
@@ -10,6 +14,26 @@ app = FastAPI(
     title="Movies homework",
     description="Description of project"
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+):
+    errors = [
+        {
+            key: value
+            for key, value in error.items()
+            if key not in ("input", "ctx")
+        }
+        for error in exc.errors()
+    ]
+
+    return JSONResponse(
+        status_code=422,
+        content={"detail": jsonable_encoder(errors)},
+    )
 
 api_version_prefix = "/api/v1"
 
