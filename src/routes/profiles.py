@@ -21,6 +21,7 @@ from storages import S3StorageInterface
 
 router = APIRouter()
 
+
 def get_token(authorization: str | None = Header(default=None)) -> str:
     if authorization is None:
         raise HTTPException(

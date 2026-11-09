@@ -13,6 +13,7 @@ from validation import (
     validate_birth_date
 )
 
+
 class ProfileCreateSchema(BaseModel):
     first_name: str
     last_name: str
