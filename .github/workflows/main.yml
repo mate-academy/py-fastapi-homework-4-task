@@ -83,13 +83,41 @@ jobs:
 
   test-e2e:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Start Docker Compose and wait for completion
+      - name: Validate Docker Compose configuration
         run: |
-          docker compose -f docker-compose-tests.yml up --build --abort-on-container-exit --exit-code-from web
+          docker compose -f docker-compose-tests.yml config --quiet
+
+      - name: Build test images
+        run: |
+          docker compose -f docker-compose-tests.yml build web minio_mc
+
+      - name: Start MailHog and MinIO
+        run: |
+          docker compose -f docker-compose-tests.yml up \
+            -d --wait --wait-timeout 120 \
+            mailhog minio
+
+      - name: Initialize MinIO bucket
+        run: |
+          docker compose -f docker-compose-tests.yml run \
+            --rm --no-deps minio_mc
+
+      - name: Run E2E tests
+        run: |
+          docker compose -f docker-compose-tests.yml run \
+            --rm --no-deps web
+
+      - name: Show infrastructure logs
+        if: always()
+        run: |
+          docker compose -f docker-compose-tests.yml ps -a
+          docker compose -f docker-compose-tests.yml logs \
+            --no-color mailhog minio
 
       - name: Cleanup
         if: always()
