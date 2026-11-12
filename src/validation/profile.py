@@ -2,44 +2,47 @@ import re
 from datetime import date
 from io import BytesIO
 
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from fastapi import UploadFile
 
 from database.models.accounts import GenderEnum
 
-
-def validate_name(name: str):
-    if re.search(r'^[A-Za-z]*$', name) is None:
-        raise ValueError(f'{name} contains non-english letters')
+SUPPORTED_FORMATS = {"JPG", "JPEG", "PNG"}
 
 
-def validate_image(avatar: UploadFile) -> None:
-    supported_image_formats = ["JPG", "JPEG", "PNG"]
-    max_file_size = 1 * 1024 * 1024
+def validate_name(name: str) -> None:
+    if re.search(r"^[A-Za-z]*$", name) is None:
+        raise ValueError(f"{name} contains non-english letters")
 
-    contents = avatar.file.read()
-    if len(contents) > max_file_size:
+
+def validate_image(avatar: UploadFile, max_size: int = 1 * 1024 * 1024) -> bytes:
+    data = avatar.file.read()
+    avatar.file.seek(0)
+
+    if len(data) > max_size:
         raise ValueError("Image size exceeds 1 MB")
 
     try:
-        image = Image.open(BytesIO(contents))
-        avatar.file.seek(0)
-        image_format = image.format
-        if image_format not in supported_image_formats:
-            raise ValueError(f"Unsupported image format: {image_format}. Use one of next: {supported_image_formats}")
-    except IOError:
+        img = Image.open(BytesIO(data))
+        fmt = (img.format or "").upper()
+    except (UnidentifiedImageError, OSError):
         raise ValueError("Invalid image format")
+
+    if fmt not in SUPPORTED_FORMATS:
+        raise ValueError(f"Unsupported image format: {fmt}. Use one of {sorted(SUPPORTED_FORMATS)}")
+    return data
 
 
 def validate_gender(gender: str) -> None:
-    if gender not in GenderEnum.__members__.values():
-        raise ValueError(f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}")
+    allowed = [g.value for g in GenderEnum]
+    if gender not in allowed:
+        raise ValueError(f"Gender must be one of: {', '.join(allowed)}")
 
 
 def validate_birth_date(birth_date: date) -> None:
     if birth_date.year < 1900:
-        raise ValueError('Invalid birth date - year must be greater than 1900.')
+        raise ValueError("Invalid birth date - year must be greater than 1900.")
 
     age = (date.today() - birth_date).days // 365
     if age < 18:
-        raise ValueError('You must be at least 18 years old to register.')
+        raise ValueError("You must be at least 18 years old to register.")

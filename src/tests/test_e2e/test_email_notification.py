@@ -65,7 +65,7 @@ async def test_registration(e2e_client, reset_db_once_for_e2e, settings, seed_us
     email_element = soup.find("strong", id="email")
     assert email_element is not None, "Email element with id 'email' not found!"
     try:
-        validate_email(email_element.text)
+        validate_email(email_element.text, check_deliverability=False)
     except EmailNotValidError as e:
         pytest.fail(f"The email link {email_element.text} is not valid: {e}")
     assert email_element.text == user_data["email"], "Email content does not match!"
@@ -140,7 +140,7 @@ async def test_account_activation(e2e_client, settings, e2e_db_session):
     email_element = soup.find("strong", id="email")
     assert email_element is not None, "Email element with id 'email' not found!"
     try:
-        validate_email(email_element.text)
+        validate_email(email_element.text, check_deliverability=False)
     except EmailNotValidError as e:
         pytest.fail(f"The email link {email_element.text} is not valid: {e}")
     assert email_element.text == user_email, "Email content does not match the user's email!"

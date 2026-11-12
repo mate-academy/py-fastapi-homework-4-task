@@ -25,6 +25,7 @@ class FakeS3Storage(S3StorageInterface):
         :param file_data: The file data in bytes.
         """
         self.storage[file_name] = file_data
+        return await self.get_file_url(file_name)
 
     async def get_file_url(self, file_name: str) -> str:
         """
