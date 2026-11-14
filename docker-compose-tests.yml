@@ -25,6 +25,8 @@ services:
         condition: service_started
       minio:
         condition: service_healthy
+      minio_mc:
+        condition: service_healthy
     volumes:
       - ./src:/usr/src/fastapi
     networks:
@@ -40,8 +42,9 @@ services:
       - theater_network_test
 
   minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest-dev
     container_name: minio-theater-test
+    user: "0:0"
     command: server --console-address ":9001" /data
     ports:
       - "9000:9000"
@@ -55,7 +58,7 @@ services:
     volumes:
       - minio_data_test:/data
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9000/minio/health/live" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -67,7 +70,7 @@ services:
       context: .
       dockerfile: docker/minio_mc/Dockerfile
     container_name: minio_mc_theater_test
-    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh" ]
+    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh && tail -f /dev/null" ]
     depends_on:
       minio:
         condition: service_healthy
@@ -77,6 +80,11 @@ services:
       - MINIO_HOST=minio-theater-test
       - MINIO_PORT=9000
       - MINIO_STORAGE=theater-storage
+    healthcheck:
+      test: [ "CMD-SHELL", "mc stat minio/$${MINIO_STORAGE} >/dev/null 2>&1" ]
+      interval: 2s
+      timeout: 5s
+      retries: 15
     networks:
       - theater_network_test
 

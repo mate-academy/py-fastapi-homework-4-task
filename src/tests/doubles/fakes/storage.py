@@ -34,3 +34,6 @@ class FakeS3Storage(S3StorageInterface):
         :return: The full fake URL to access the file.
         """
         return f"http://fake-s3.local/{file_name}"
+
+    async def delete_file(self, file_name: str) -> None:
+        self.storage.pop(file_name, None)
