@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from uuid import uuid4
 
 from jose import jwt, JWTError, ExpiredSignatureError
 
@@ -45,8 +46,10 @@ class JWTAuthManager(JWTAuthManagerInterface):
         """
         Create a new refresh token with a default or specified expiration time.
         """
+        token_data = data.copy()
+        token_data.setdefault("jti", uuid4().hex)
         return self._create_token(
-            data,
+            token_data,
             self._secret_key_refresh,
             expires_delta or timedelta(minutes=self._REFRESH_KEY_TIMEDELTA_MINUTES))
 
