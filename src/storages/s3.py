@@ -1,3 +1,4 @@
+from mimetypes import guess_type
 from typing import Union
 
 import aioboto3
@@ -5,7 +6,8 @@ from botocore.exceptions import (
     BotoCoreError,
     NoCredentialsError,
     HTTPClientError,
-    ConnectionError
+    ConnectionError,
+    ClientError
 )
 
 from exceptions import S3ConnectionError, S3FileUploadError
@@ -60,12 +62,19 @@ class S3StorageClient(S3StorageInterface):
                     Bucket=self._bucket_name,
                     Key=file_name,
                     Body=file_data,
-                    ContentType="image/jpeg"
+                    ContentType=guess_type(file_name)[0] or "application/octet-stream"
                 )
         except (ConnectionError, HTTPClientError, NoCredentialsError) as e:
             raise S3ConnectionError(f"Failed to connect to S3 storage: {str(e)}") from e
-        except BotoCoreError as e:
+        except (BotoCoreError, ClientError) as e:
             raise S3FileUploadError(f"Failed to upload to S3 storage: {str(e)}") from e
+
+    async def delete_file(self, file_name: str) -> None:
+        try:
+            async with self._session.client("s3", endpoint_url=self._endpoint_url) as client:
+                await client.delete_object(Bucket=self._bucket_name, Key=file_name)
+        except (BotoCoreError, ClientError) as e:
+            raise S3FileUploadError(f"Failed to remove file from S3 storage: {str(e)}") from e
 
     async def get_file_url(self, file_name: str) -> str:
         """
