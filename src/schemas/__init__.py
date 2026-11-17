@@ -17,4 +17,4 @@ from schemas.accounts import (
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema
 )
-from schemas.profiles import ProfileResponseSchema
+from schemas.profiles import ProfileResponseSchema, ProfileCreateSchema

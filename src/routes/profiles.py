@@ -95,7 +95,13 @@ def validate_name_field(name: str, field_name: str) -> None:
 
 def validate_birth_date_from_string(date_of_birth: str) -> date:
     """Parse and validate birth date from string."""
-    birth_date = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
+    try:
+        birth_date = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid date format: {date_of_birth}. Expected format: YYYY-MM-DD."
+        )
     try:
         validate_birth_date(birth_date)
     except ValueError as e:

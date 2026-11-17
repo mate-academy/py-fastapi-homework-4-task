@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import cast
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status, HTTPException
 from sqlalchemy import select, delete
@@ -122,8 +123,8 @@ async def register_user(
         await db.flush()
 
         activation_link = (
-            f"http://127.0.0.1/accounts/activate/"
-            f"?email={user_data.email}&token={activation_token.token}"
+            "http://127.0.0.1/accounts/activate/?"
+            + urlencode({"email": str(user_data.email), "token": activation_token.token})
         )
 
         await db.commit()
@@ -288,8 +289,8 @@ async def request_password_reset_token(
     await db.flush()
 
     reset_link = (
-        f"http://127.0.0.1/accounts/reset-password/"
-        f"?email={data.email}&token={reset_token.token}"
+        "http://127.0.0.1/accounts/reset-password/?"
+        + urlencode({"email": str(data.email), "token": reset_token.token})
     )
 
     await db.commit()
