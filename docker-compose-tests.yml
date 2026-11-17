@@ -40,18 +40,23 @@ services:
       - theater_network_test
 
   minio:
-    image: adobe/s3mock:latest
+    image: pgsty/minio:latest
     container_name: minio-theater-test
+    command: server --console-address ":9001" /data
     ports:
-      - "9000:9090"
-      - "9001:9191"
+      - "9000:9000"
+      - "9001:9001"
     environment:
-      - initialBuckets=theater-storage
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=some_password
+    volumes:
+      - minio_data_test:/data
     healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/favicon.ico" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - theater_network_test
 
