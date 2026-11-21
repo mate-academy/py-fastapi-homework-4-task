@@ -1,6 +1,6 @@
 services:
   db:
-    image: 'postgres:latest'
+    image: postgres:17
     container_name: postgres_theater
     env_file:
       - .env
@@ -52,7 +52,9 @@ services:
       - theater_network
 
   minio:
-    image: minio/minio:latest
+    build:
+      context: .
+      dockerfile: docker/minio/Dockerfile
     container_name: minio-theater
     command: server --console-address ":9001" /data
     ports:
@@ -63,7 +65,7 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      test: [ "CMD", "curl", "-fs", "http://localhost:9000/minio/health/ready" ]
       interval: 10s
       timeout: 5s
       retries: 5

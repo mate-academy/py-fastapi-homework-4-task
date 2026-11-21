@@ -25,6 +25,8 @@ services:
         condition: service_started
       minio:
         condition: service_healthy
+      minio_mc:
+        condition: service_healthy
     volumes:
       - ./src:/usr/src/fastapi
     networks:
@@ -40,7 +42,9 @@ services:
       - theater_network_test
 
   minio:
-    image: minio/minio:latest
+    build:
+      context: .
+      dockerfile: docker/minio/Dockerfile
     container_name: minio-theater-test
     command: server --console-address ":9001" /data
     ports:
@@ -55,7 +59,7 @@ services:
     volumes:
       - minio_data_test:/data
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      test: [ "CMD", "curl", "-fs", "http://localhost:9000/minio/health/ready" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -67,7 +71,13 @@ services:
       context: .
       dockerfile: docker/minio_mc/Dockerfile
     container_name: minio_mc_theater_test
-    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh" ]
+    # Stay alive after setup so `up --abort-on-container-exit` doesn't stop the tests
+    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh && touch /tmp/minio_ready && tail -f /dev/null" ]
+    healthcheck:
+      test: [ "CMD", "test", "-f", "/tmp/minio_ready" ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     depends_on:
       minio:
         condition: service_healthy
