@@ -45,7 +45,7 @@ services:
       - PYTHONPATH=/usr/src/fastapi
       - WATCHFILES_FORCE_POLLING=true
     ports:
-      - "8000:8000"
+      - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -90,7 +90,7 @@ services:
       - theater_network
 
   minio:
-    image: minio/minio:latest
+    image: pgsty/minio:latest
     container_name: minio-theater
     command: server --console-address ":9001" /data
     ports:
