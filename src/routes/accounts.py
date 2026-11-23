@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,6 +68,7 @@ router = APIRouter()
 async def register_user(
         user_data: UserRegistrationRequestSchema,
         db: AsyncSession = Depends(get_db),
+        email_notifier = Depends(get_accounts_email_notificator)
 ) -> UserRegistrationResponseSchema:
     """
     Endpoint for user registration.
@@ -118,8 +119,12 @@ async def register_user(
         activation_token = ActivationTokenModel(user_id=new_user.id)
         db.add(activation_token)
 
+        activation_link = f"http://localhost:8080/accounts/login"
+        BackgroundTasks.add_task(email_notifier.get_accounts_email_notificator, str(user_data.email), activation_link)
+
         await db.commit()
         await db.refresh(new_user)
+
     except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(

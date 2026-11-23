@@ -1,5 +1,4 @@
 from datetime import date
-from typing import Optional
 
 from fastapi import UploadFile, Form, File, HTTPException, status
 from pydantic import BaseModel, HttpUrl
