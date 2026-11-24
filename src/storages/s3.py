@@ -3,6 +3,7 @@ from typing import Union
 import aioboto3
 from botocore.exceptions import (
     BotoCoreError,
+    ClientError,
     NoCredentialsError,
     HTTPClientError,
     ConnectionError
@@ -60,11 +61,13 @@ class S3StorageClient(S3StorageInterface):
                     Bucket=self._bucket_name,
                     Key=file_name,
                     Body=file_data,
-                    ContentType="image/jpeg"
+                    ContentType=(
+                        "image/png" if file_data.startswith(b"\x89PNG\r\n\x1a\n") else "image/jpeg"
+                    )
                 )
         except (ConnectionError, HTTPClientError, NoCredentialsError) as e:
             raise S3ConnectionError(f"Failed to connect to S3 storage: {str(e)}") from e
-        except BotoCoreError as e:
+        except (BotoCoreError, ClientError) as e:
             raise S3FileUploadError(f"Failed to upload to S3 storage: {str(e)}") from e
 
     async def get_file_url(self, file_name: str) -> str:

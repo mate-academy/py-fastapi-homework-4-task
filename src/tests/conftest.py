@@ -126,7 +126,7 @@ async def e2e_client():
 
     This client is available at the session scope.
     """
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as async_client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://theater.example.test") as async_client:
         yield async_client
 
 

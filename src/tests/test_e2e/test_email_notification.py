@@ -320,7 +320,11 @@ async def test_reset_password(e2e_client, e2e_db_session, settings):
     deleted_token = deleted_result.scalars().first()
     assert deleted_token is None, "Password reset token was not deleted after use!"
 
-    stmt_user = select(UserModel).where(UserModel.email == user_email)
+    stmt_user = (
+        select(UserModel)
+        .where(UserModel.email == user_email)
+        .execution_options(populate_existing=True)
+    )
     user_result = await e2e_db_session.execute(stmt_user)
     updated_user = user_result.scalars().first()
     assert updated_user is not None, f"User with email {user_email} not found!"

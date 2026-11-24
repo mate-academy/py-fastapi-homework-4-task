@@ -23,7 +23,7 @@ services:
     depends_on:
       mailhog:
         condition: service_started
-      minio:
+      minio_mc:
         condition: service_healthy
     volumes:
       - ./src:/usr/src/fastapi
@@ -40,7 +40,8 @@ services:
       - theater_network_test
 
   minio:
-    image: minio/minio:latest
+    build:
+      context: ./docker/minio
     container_name: minio-theater-test
     command: server --console-address ":9001" /data
     ports:
@@ -67,7 +68,12 @@ services:
       context: .
       dockerfile: docker/minio_mc/Dockerfile
     container_name: minio_mc_theater_test
-    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh" ]
+    command: ["/bin/sh", "-ec", "sh -e /commands/setup_minio.sh && touch /tmp/minio-ready && exec sleep infinity"]
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/minio-ready"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
     depends_on:
       minio:
         condition: service_healthy
