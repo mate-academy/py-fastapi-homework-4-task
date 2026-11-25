@@ -29,8 +29,13 @@ async def create_user_profile(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client)
 ) -> ProfileResponseSchema:
-    token = get_token(request)
-    
+    try:
+        token = get_token(request)
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalid_token."
+        )
     try:
         payload = jwt_manager.decode_access_token(token)
     except TokenExpiredError:
@@ -95,17 +100,23 @@ async def create_user_profile(
             detail="Failed to upload avatar. Please try again later."
         )
 
-    new_profile = UserProfileModel(
-        user_id=user_id,
-        first_name=profile_data.first_name,
-        last_name=profile_data.last_name,
-        gender=profile_data.gender,
-        date_of_birth=profile_data.date_of_birth,
-        info=profile_data.info,
-        avatar=avatar_url
-    )
-    db.add(new_profile)
-    await db.commit()
-    await db.refresh(new_profile)
+    try:
+        new_profile = UserProfileModel(
+            user_id=user_id,
+            first_name=profile_data.first_name,
+            last_name=profile_data.last_name,
+            gender=profile_data.gender,
+            date_of_birth=profile_data.date_of_birth,
+            info=profile_data.info,
+            avatar=avatar_url
+        )
+        db.add(new_profile)
+        await db.commit()
+        await db.refresh(new_profile)
+    except AssertionError:
+        raise HTTPException(
+            status_code=422,
+            detail="Info cannot be empty or consist only of spaces."
+        )
 
     return ProfileResponseSchema.model_validate(new_profile)
