@@ -32,6 +32,7 @@ from schemas import (
     TokenRefreshResponseSchema
 )
 from security.interfaces import JWTAuthManagerInterface
+from urllib.parse import urlencode
 
 router = APIRouter()
 
@@ -129,11 +130,14 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
-        activation_link = f"http://127.0.0.1/accounts/activate?token={activation_token.token}"
+
+        email = str(user_data.email)
+        query = urlencode({"email": email, "token": activation_token.token})
+        activation_link = f"http://127.0.0.1:8000/accounts/activate?{query}"
 
         background_tasks.add_task(
             email_sender.send_activation_email,
-            str(user_data.email),
+            email,
             activation_link
         )
 
@@ -285,12 +289,14 @@ async def request_password_reset_token(
     db.add(reset_token)
     await db.commit()
 
-    password_reset_complete_link = f"http://127.0.0.1/accounts/reset-password/complete?token={reset_token.token}"
+    email = str(data.email)
+    query = urlencode({"email": email, "token": reset_token.token})
+    activation_link = f"http://127.0.0.1:8000/accounts/reset-password/complete?{query}"
 
     background_tasks.add_task(
         email_sender.send_password_reset_email,
-        str(data.email),
-        password_reset_complete_link
+        email,
+        activation_link
     )
 
     return MessageResponseSchema(
@@ -408,7 +414,7 @@ async def reset_password(
             detail="An error occurred while resetting the password."
         )
 
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = "http://127.0.0.1:8000/accounts/login/"
 
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email,
