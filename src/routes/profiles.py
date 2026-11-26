@@ -1,3 +1,5 @@
+from urllib import error
+
 from fastapi import APIRouter, Depends, status, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +13,19 @@ from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
 from exceptions import TokenExpiredError, InvalidTokenError, BaseS3Error
 import os
+from io import BytesIO
+from PIL import Image
 
 router = APIRouter()
+
+
+AVATAR_EXTENSIONS = {"JPEG": "jpg", "JPG": "jpg", "PNG": "png"}
+
+
+def get_avatar_extension(data: bytes) -> str:
+    with Image.open(BytesIO(data)) as image:
+        return AVATAR_EXTENSIONS[image.format]
+
 
 @router.post(
     "/users/{user_id}/profile/",
@@ -24,18 +37,18 @@ router = APIRouter()
 async def create_user_profile(
     user_id: int,
     request: Request,
-    profile_data: ProfileCreateSchema = Depends(),
+    profile_data: ProfileCreateSchema =  Depends(
+            ProfileCreateSchema.as_form
+        ),
     db: AsyncSession = Depends(get_db),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client)
 ) -> ProfileResponseSchema:
     try:
         token = get_token(request)
-    except:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token invalid_token."
-        )
+    except error:
+        raise error
+
     try:
         payload = jwt_manager.decode_access_token(token)
     except TokenExpiredError:
@@ -83,17 +96,13 @@ async def create_user_profile(
             detail="User already has a profile."
         )
 
-    avatar_file = profile_data.avatar
-    # Reset file pointer after validation read it
-    await avatar_file.seek(0)
-    file_bytes = await avatar_file.read()
-    
-    ext = os.path.splitext(avatar_file.filename)[1] if avatar_file.filename else ".jpg"
-    avatar_filename = f"{user_id}_avatar{ext}"
+
+    avatar_bytes = await profile_data.avatar.read()
+    extension = get_avatar_extension(avatar_bytes)
+    avatar_key = f"avatars/{user_id}_avatar.{extension}"
     
     try:
-        await s3_client.upload_file(avatar_filename, file_bytes)
-        avatar_url = await s3_client.get_file_url(avatar_filename)
+        await s3_client.upload_file(file_name=avatar_key, file_data=avatar_bytes)
     except BaseS3Error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -108,7 +117,7 @@ async def create_user_profile(
             gender=profile_data.gender,
             date_of_birth=profile_data.date_of_birth,
             info=profile_data.info,
-            avatar=avatar_url
+            avatar=avatar_key
         )
         db.add(new_profile)
         await db.commit()
