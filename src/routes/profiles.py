@@ -36,7 +36,7 @@ def get_avatar_extension(data: bytes) -> str:
 )
 async def create_user_profile(
     user_id: int,
-    request: Request,
+    token: str =  Depends(get_token),
     profile_data: ProfileCreateSchema =  Depends(
             ProfileCreateSchema.as_form
         ),
@@ -44,10 +44,6 @@ async def create_user_profile(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client)
 ) -> ProfileResponseSchema:
-    try:
-        token = get_token(request)
-    except error:
-        raise error
 
     try:
         payload = jwt_manager.decode_access_token(token)
