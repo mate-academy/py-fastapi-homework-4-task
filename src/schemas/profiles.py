@@ -11,7 +11,6 @@ from validation import (
 )
 
 
-
 def _validation_error(error: ValueError) -> HTTPException:
     return HTTPException(status_code=422, detail=str(error))
 
@@ -85,6 +84,7 @@ class ProfileCreateSchema(BaseModel):
             info=info,
             avatar=avatar,
         )
+
 
 class ProfileResponseSchema(BaseModel):
     id: int

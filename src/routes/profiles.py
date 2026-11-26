@@ -36,10 +36,10 @@ def get_avatar_extension(data: bytes) -> str:
 )
 async def create_user_profile(
     user_id: int,
-    token: str =  Depends(get_token),
-    profile_data: ProfileCreateSchema =  Depends(
-            ProfileCreateSchema.as_form
-        ),
+    token: str = Depends(get_token),
+    profile_data: ProfileCreateSchema = Depends(
+        ProfileCreateSchema.as_form
+    ),
     db: AsyncSession = Depends(get_db),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client)
@@ -57,13 +57,13 @@ async def create_user_profile(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token."
         )
-        
+
     token_user_id = payload.get("user_id")
-    
+
     stmt = select(UserModel).options(joinedload(UserModel.group)).filter_by(id=token_user_id)
     result = await db.execute(stmt)
     token_user = result.scalars().first()
-    
+
     if not token_user or not token_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -92,11 +92,10 @@ async def create_user_profile(
             detail="User already has a profile."
         )
 
-
     avatar_bytes = await profile_data.avatar.read()
     extension = get_avatar_extension(avatar_bytes)
     avatar_key = f"avatars/{user_id}_avatar.{extension}"
-    
+
     try:
         await s3_client.upload_file(file_name=avatar_key, file_data=avatar_bytes)
     except BaseS3Error:
