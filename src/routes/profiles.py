@@ -98,6 +98,7 @@ async def create_user_profile(
 
     try:
         await s3_client.upload_file(file_name=avatar_key, file_data=avatar_bytes)
+        avatar_url = await s3_client.get_file_url(file_name=avatar_key)
     except BaseS3Error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -112,7 +113,7 @@ async def create_user_profile(
             gender=profile_data.gender,
             date_of_birth=profile_data.date_of_birth,
             info=profile_data.info,
-            avatar=avatar_key
+            avatar=avatar_url
         )
         db.add(new_profile)
         await db.commit()
