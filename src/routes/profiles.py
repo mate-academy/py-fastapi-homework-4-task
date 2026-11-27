@@ -113,11 +113,12 @@ async def create_user_profile(
             gender=profile_data.gender,
             date_of_birth=profile_data.date_of_birth,
             info=profile_data.info,
-            avatar=avatar_url
+            avatar=avatar_key
         )
         db.add(new_profile)
         await db.commit()
         await db.refresh(new_profile)
+        new_profile.avatar = avatar_url
     except AssertionError:
         raise HTTPException(
             status_code=422,
