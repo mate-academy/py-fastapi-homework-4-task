@@ -17,6 +17,7 @@ class BaseAppSettings(BaseSettings):
     PASSWORD_RESET_COMPLETE_TEMPLATE_NAME: str = "password_reset_complete.html"
 
     LOGIN_TIME_DAYS: int = 7
+    BASE_URL: str = "http://127.0.0.1:8000/"
 
     EMAIL_HOST: str = os.getenv("EMAIL_HOST", "host")
     EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", 25))
