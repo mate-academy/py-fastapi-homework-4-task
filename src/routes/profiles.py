@@ -1,5 +1,3 @@
-from urllib import error
-
 from fastapi import APIRouter, Depends, status, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +10,6 @@ from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
 from exceptions import TokenExpiredError, InvalidTokenError, BaseS3Error
-import os
 from io import BytesIO
 from PIL import Image
 
@@ -105,24 +102,19 @@ async def create_user_profile(
             detail="Failed to upload avatar. Please try again later."
         )
 
-    try:
-        new_profile = UserProfileModel(
-            user_id=user_id,
-            first_name=profile_data.first_name,
-            last_name=profile_data.last_name,
-            gender=profile_data.gender,
-            date_of_birth=profile_data.date_of_birth,
-            info=profile_data.info,
-            avatar=avatar_key
-        )
-        db.add(new_profile)
-        await db.commit()
-        await db.refresh(new_profile)
-        new_profile.avatar = avatar_url
-    except AssertionError:
-        raise HTTPException(
-            status_code=422,
-            detail="Info cannot be empty or consist only of spaces."
-        )
 
-    return ProfileResponseSchema.model_validate(new_profile)
+    new_profile = UserProfileModel(
+        user_id=user_id,
+        first_name=profile_data.first_name,
+        last_name=profile_data.last_name,
+        gender=profile_data.gender,
+        date_of_birth=profile_data.date_of_birth,
+        info=profile_data.info,
+        avatar=avatar_key
+    )
+    db.add(new_profile)
+    await db.commit()
+    await db.refresh(new_profile)
+
+
+    return ProfileResponseSchema.model_validate(new_profile).model_copy(update={"avatar": avatar_url})

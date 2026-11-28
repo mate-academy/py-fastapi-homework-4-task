@@ -46,5 +46,5 @@ def validate_birth_date(birth_date: date) -> None:
 
 
 def validate_info(info: str) -> None:
-    if not info.strip() or len(info.strip()) == 0:
+    if not info.strip():
         raise ValueError('Info field cannot be empty or contain only spaces.')
