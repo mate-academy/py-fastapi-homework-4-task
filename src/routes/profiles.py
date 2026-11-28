@@ -102,7 +102,6 @@ async def create_user_profile(
             detail="Failed to upload avatar. Please try again later."
         )
 
-
     new_profile = UserProfileModel(
         user_id=user_id,
         first_name=profile_data.first_name,
@@ -115,6 +114,5 @@ async def create_user_profile(
     db.add(new_profile)
     await db.commit()
     await db.refresh(new_profile)
-
 
     return ProfileResponseSchema.model_validate(new_profile).model_copy(update={"avatar": avatar_url})
